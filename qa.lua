@@ -1,27 +1,25 @@
 -- ============================================
--- DISCORD LOGGER PRO - COMPLETE EDITION
--- All Commands: ?whois, ?server stats, ?msgcount, ?ss
+-- DISCORD LOGGER PRO - PREMIUM EDITION
+-- All Commands: ?whois, ?server stats, ?msgcount
 -- ============================================
 
 -- ========== WEBHOOK CONFIGURATION ==========
 local webhookUrl = "https://discord.com/api/webhooks/1482913836423057428/fYSkY7XfawDG3ClH3tMmsymEzZjqKyiZH4q3LCZSV6_ztlAy7wOkdl22ZYLNZUfQevEi" -- Main webhook for connection & chat
 local joinLeaveWebhook = "https://discord.com/api/webhooks/1482913976294572215/hiFyivZJqHlMtf5e4c_QcIwowxbV2xbqYX4Kt4Mkwyxbigq_mrA-d2xvHhWNtRgL0c7N" -- Separate webhook for joins & leaves
-local consoleWebhook = "https://discord.com/api/webhooks/1482913976294572215/hiFyivZJqHlMtf5e4c_QcIwowxbV2xbqYX4Kt4Mkwyxbigq_mrA-d2xvHhWNtRgL0c7N" -- Console webhook for logs
 local whoisWebhook = "https://discord.com/api/webhooks/1483184762926403846/p4auNyoTdXl79RoY-8v_ngDQiRXS3ulCCHFpH5lWuN5G2w_F_ow6fVACmEOkaIK5S0uC" -- For ?whois command
 local serverStatsWebhook = "https://discord.com/api/webhooks/1483183902783967233/0bR3I2G5qHXGmfP2IpE4tJ0jY7FHz0JeEpwSh4l8_G09tUDeiRzaKsuSlGl7zP0CnApu" -- For ?server stats
-local screenshotWebhook = "https://discord.com/api/webhooks/1483185668040556778/CyfwfPDCqmYiqOl4YHTCLEF0n_jdSj85WiRhUuN-HTIcl9UnuUCwC-AFPZ7gpv24enx8" -- For ?ss command
 
 -- ========== GLOBAL VARIABLES ==========
 local loggingEnabled = {
     chat = true,
     joins = true,
-    leaves = true,
-    console = true
+    leaves = true
 }
 local loggingMode = "normal"
 local playerLogs = {}
 local messageCounts = {}
 local startTime = os.time()
+local commandHistory = {}
 
 -- ========== COLOR CONSTANTS ==========
 local Colors = {
@@ -32,58 +30,173 @@ local Colors = {
     INFO = 5814783,
     WARNING = 16776960,
     COMMAND = 15277667,
-    CONSOLE = 12312312,
     WHOIS = 10181046,
-    STATS = 15844367
+    STATS = 15844367,
+    SUCCESS = 3066993,
+    ERROR = 15158332,
+    DIVIDER = 12312312
 }
 
--- ========== CONSOLE CAPTURE ==========
-local oldPrint = print
-local consoleBuffer = {}
-
-local function capturePrint(...)
-    local args = {...}
-    local output = ""
-    for i, v in ipairs(args) do
-        output = output .. tostring(v)
-        if i < #args then output = output .. " " end
-    end
+-- ========== FIXED WEBHOOK SEND FUNCTION ==========
+local function sendToWebhook(webhookUrl, embedData, username)
+    if not webhookUrl then return end
     
-    table.insert(consoleBuffer, {
+    local httpService = game:GetService("HttpService")
+    
+    -- Try multiple methods to send webhook
+    local methods = {
+        -- Method 1: Synapse request
+        function()
+            if syn and syn.request then
+                syn.request({
+                    Url = webhookUrl,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = httpService:JSONEncode({
+                        embeds = {embedData},
+                        username = username or "Logger",
+                        avatar_url = "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
+                    })
+                })
+                return true
+            end
+            return false
+        end,
+        
+        -- Method 2: Krnl request
+        function()
+            if http_request then
+                http_request({
+                    Url = webhookUrl,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = httpService:JSONEncode({
+                        embeds = {embedData},
+                        username = username or "Logger",
+                        avatar_url = "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
+                    })
+                })
+                return true
+            end
+            return false
+        end,
+        
+        -- Method 3: Fluxus request
+        function()
+            if fluxus and fluxus.request then
+                fluxus.request({
+                    Url = webhookUrl,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = httpService:JSONEncode({
+                        embeds = {embedData},
+                        username = username or "Logger",
+                        avatar_url = "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
+                    })
+                })
+                return true
+            end
+            return false
+        end,
+        
+        -- Method 4: Generic request
+        function()
+            if request then
+                request({
+                    Url = webhookUrl,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = httpService:JSONEncode({
+                        embeds = {embedData},
+                        username = username or "Logger",
+                        avatar_url = "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
+                    })
+                })
+                return true
+            end
+            return false
+        end,
+        
+        -- Method 5: PostAsync (last resort)
+        function()
+            pcall(function()
+                httpService:PostAsync(webhookUrl, httpService:JSONEncode({
+                    embeds = {embedData},
+                    username = username or "Logger",
+                    avatar_url = "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
+                }), Enum.HttpContentType.ApplicationJson)
+            end)
+            return true
+        end
+    }
+    
+    for _, method in ipairs(methods) do
+        if method() then
+            break
+        end
+    end
+end
+
+local function sendToDiscwebhook(embedData, useJoinLeave)
+    sendToWebhook(useJoinLeave and joinLeaveWebhook or webhookUrl, embedData, "Logger")
+    wait(0.5)
+end
+
+-- ========== ENHANCED COMMAND EMBEDS ==========
+local function sendCommandEmbed(command, executor, status, details)
+    local gameInfo = getGameInfo()
+    local localPlayer = game:GetService("Players").LocalPlayer
+    
+    -- Add to command history
+    table.insert(commandHistory, {
+        command = command,
         time = os.time(),
-        content = output
+        status = status
     })
+    if #commandHistory > 10 then table.remove(commandHistory, 1) end
     
-    if #consoleBuffer > 100 then
-        table.remove(consoleBuffer, 1)
-    end
+    local statusColor = status == "Success" and Colors.SUCCESS or (status == "Error" and Colors.ERROR or Colors.WARNING)
+    local statusEmoji = status == "Success" and "✅" or (status == "Error" and "❌" or "⚠️")
     
-    oldPrint(...)
-end
-print = capturePrint
-
-local oldWarn = warn
-warn = function(...)
-    local args = {...}
-    local output = ""
-    for i, v in ipairs(args) do
-        output = output .. tostring(v)
-        if i < #args then output = output .. " " end
-    end
-    sendConsoleLog("⚠️ " .. output, "⚠️ **WARNING**")
-    oldWarn(...)
-end
-
-local oldError = error
-error = function(msg, level)
-    sendConsoleLog("❌ " .. tostring(msg), "❌ **ERROR**")
-    oldError(msg, level)
+    local embed = {
+        title = "🎮 **COMMAND EXECUTED**",
+        description = "──────────────────────────────",
+        color = Colors.COMMAND,
+        fields = {
+            {name = "📋 **Command Details**", value = "──────────────────────────────", inline = false},
+            {name = "⌨️ Command", value = "```" .. command .. "```", inline = true},
+            {name = "👤 Executor", value = string.format("%s (@%s)", localPlayer.DisplayName, localPlayer.Name), inline = true},
+            {name = "🆔 User ID", value = localPlayer.UserId, inline = true},
+            {name = "📊 Status", value = string.format("%s %s", statusEmoji, status), inline = true},
+            {name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true},
+            {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            
+            {name = "📝 **Command Details**", value = "──────────────────────────────", inline = false},
+            {name = "ℹ️ Information", value = details or "Command executed successfully", inline = false},
+            
+            {name = "⚙️ **Current Settings**", value = "──────────────────────────────", inline = false},
+            {name = "💬 Chat", value = (loggingEnabled.chat and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "🟢 Joins", value = (loggingEnabled.joins and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "🔴 Leaves", value = (loggingEnabled.leaves and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "📝 Mode", value = loggingMode:upper(), inline = true},
+            {name = "🎯 Specific", value = (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL"), inline = true},
+            {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            
+            {name = "📊 **Server Info**", value = "──────────────────────────────", inline = false},
+            {name = "🎮 Game", value = gameInfo.name, inline = false},
+            {name = "📍 Place ID", value = gameInfo.placeId, inline = true},
+            {name = "🔑 Job ID", value = gameInfo.jobId:sub(1,8), inline = true}
+        },
+        footer = {text = "Command Logger • Live Feed"},
+        timestamp = DateTime.now():ToIsoDate()
+    }
+    sendToDiscwebhook(embed, false)
 end
 
 -- ========== HELPER FUNCTIONS ==========
 local function getExecutorInfo()
     local executorInfo = {
-        name = "Swift" .. math.random(100, 999),
+        name = "Logger" .. math.random(100, 999),
         version = "v" .. math.random(1, 3) .. "." .. math.random(0, 9),
         build = "Premium"
     }
@@ -91,8 +204,12 @@ local function getExecutorInfo()
 end
 
 local function getGameInfo()
+    local success, productInfo = pcall(function()
+        return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+    end)
+    
     local gameInfo = {
-        name = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Unknown Game",
+        name = (success and productInfo.Name) or "Unknown Game",
         placeId = game.PlaceId,
         jobId = game.JobId,
         players = #game:GetService("Players"):GetPlayers(),
@@ -115,80 +232,6 @@ local function findPlayersByPartialName(partial)
     return matches
 end
 
--- ========== WEBHOOK SEND FUNCTIONS ==========
-local function sendToWebhook(webhookUrl, embedData, username, avatarUrl)
-    if not webhookUrl or webhookUrl:find("YOUR_") then
-        warn("⚠️ Webhook not configured")
-        return
-    end
-    
-    local httpService = game:GetService("HttpService")
-    local payload = {
-        embeds = {embedData},
-        username = username or "Logger",
-        avatar_url = avatarUrl or "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
-    }
-    
-    local jsonPayload = httpService:JSONEncode(payload)
-    
-    pcall(function()
-        local requestFunc = syn and syn.request or http_request or request or fluxus and fluxus.request
-        if requestFunc then
-            requestFunc({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = jsonPayload
-            })
-        else
-            httpService:PostAsync(webhookUrl, jsonPayload, Enum.HttpContentType.ApplicationJson)
-        end
-    end)
-end
-
-local function sendToDiscwebhook(embedData, useJoinLeave)
-    sendToWebhook(useJoinLeave and joinLeaveWebhook or webhookUrl, embedData, "𝙲𝚊𝚙𝚝𝚊𝚒𝚗 𝙷𝚘𝚘𝚔")
-    wait(0.5)
-end
-
-local function sendConsoleLog(message, title)
-    if not loggingEnabled.console then return end
-    
-    local embed = {
-        title = title or "📋 **CONSOLE LOG**",
-        description = "```" .. message .. "```",
-        color = Colors.CONSOLE,
-        fields = {
-            {name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true},
-            {name = "📊 Status", value = loggingEnabled.console and "Active" or "Paused", inline = true}
-        },
-        timestamp = DateTime.now():ToIsoDate()
-    }
-    sendToWebhook(consoleWebhook, embed, "Console Logger")
-end
-
-local function sendCommandConfirmation(command, message, status)
-    local embed = {
-        title = "⚙️ **COMMAND EXECUTED**",
-        description = message,
-        color = Colors.COMMAND,
-        fields = {
-            {name = "Command", value = "`" .. command .. "`", inline = true},
-            {name = "Status", value = status or "✅ Success", inline = true},
-            {name = "Current Settings", value = string.format("```Chat: %s | Joins: %s | Leaves: %s | Console: %s | Mode: %s | Specific: %s```",
-                (loggingEnabled.chat and "ON" or "OFF"),
-                (loggingEnabled.joins and "ON" or "OFF"),
-                (loggingEnabled.leaves and "ON" or "OFF"),
-                (loggingEnabled.console and "ON" or "OFF"),
-                loggingMode:upper(),
-                (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL")), inline = false}
-        },
-        timestamp = DateTime.now():ToIsoDate()
-    }
-    sendToDiscwebhook(embed, false)
-    sendConsoleLog("Command: " .. command .. " - " .. message)
-end
-
 -- ========== CONNECTION MESSAGE ==========
 local function sendConnectionMessage()
     local executor = getExecutorInfo()
@@ -197,43 +240,78 @@ local function sendConnectionMessage()
     
     local embed = {
         title = "✅ **LOGGER CONNECTED**",
-        description = "Live feed established!",
+        description = "──────────────────────────────\n**Live feed has been established successfully!**\n──────────────────────────────",
         color = Colors.CONNECT,
         fields = {
-            {name = "🤖 Executor", value = string.format("```%s %s```", executor.name, executor.version), inline = true},
-            {name = "👤 Account", value = string.format("```%s (@%s)```", localPlayer.DisplayName, localPlayer.Name), inline = true},
-            {name = "🆔 User ID", value = string.format("```%s```", localPlayer.UserId), inline = true},
-            {name = "🎮 Game Info", value = string.format("```📌 %s\n📍 %s\n🔑 %s\n👥 %d/%d```", 
-                gameInfo.name, gameInfo.placeId, gameInfo.jobId:sub(1,8), gameInfo.players, gameInfo.maxPlayers), inline = false},
-            {name = "⌨️ Commands", value = "```?commands - Show all commands```", inline = false}
+            {name = "🤖 **Executor Information**", value = "──────────────────────────────", inline = false},
+            {name = "🤖 Name", value = executor.name, inline = true},
+            {name = "📦 Version", value = executor.version, inline = true},
+            {name = "🏗️ Build", value = executor.build, inline = true},
+            
+            {name = "👤 **Account Information**", value = "──────────────────────────────", inline = false},
+            {name = "👤 Display", value = localPlayer.DisplayName, inline = true},
+            {name = "🔰 Username", value = "@" .. localPlayer.Name, inline = true},
+            {name = "🆔 User ID", value = localPlayer.UserId, inline = true},
+            
+            {name = "🎮 **Game Information**", value = "──────────────────────────────", inline = false},
+            {name = "🎮 Name", value = gameInfo.name, inline = false},
+            {name = "📍 Place ID", value = gameInfo.placeId, inline = true},
+            {name = "🔑 Job ID", value = gameInfo.jobId:sub(1,8) .. "...", inline = true},
+            {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            
+            {name = "⌨️ **Available Commands**", value = "──────────────────────────────", inline = false},
+            {name = "Commands", value = "```?commands - Show all commands\n?start/stop - Control logging\n?log - Track specific players\n?whois - Player info\n?server stats - Server info\n?msgcount - Message counts```", inline = false}
         },
-        footer = {text = "Live Feed Active • Type ?commands"},
+        footer = {text = "Type ?commands for full command list • Live Feed Active"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, false)
-    sendConsoleLog("Logger connected - All systems online")
 end
 
 -- ========== COMMANDS LIST ==========
 local function sendCommandsList()
+    local gameInfo = getGameInfo()
     local embed = {
         title = "📋 **COMMANDS LIST**",
+        description = "──────────────────────────────\n**All Available Commands**\n──────────────────────────────",
         color = Colors.INFO,
         fields = {
-            {name = "🔄 Basic Commands", value = "```?start - Start all\n?start chat/joins/leaves/console - Start specific\n?stop - Stop all\n?stop chat/joins/leaves/console/specific - Stop specific```", inline = false},
-            {name = "🎯 Player Specific", value = "```?log (name) - Log specific player(s) (partial names work)\n?stop specific - Stop logging specific players```", inline = false},
-            {name = "📝 Chat Format", value = "```?simple - Simple format\n?normal - Normal format```", inline = false},
-            {name = "🔍 Info Commands", value = "```?whois [player] - Get player info\n?server stats - Server stats\n?msgcount [player/all/names] - Message counts\n?ss [player/chat] - Take screenshot```", inline = false},
-            {name = "ℹ️ Other", value = "```?commands - Show this menu```", inline = false},
-            {name = "⚙️ Current Status", value = string.format("```Chat: %s | Joins: %s | Leaves: %s | Console: %s | Mode: %s | Specific: %s```",
-                (loggingEnabled.chat and "ON" or "OFF"), (loggingEnabled.joins and "ON" or "OFF"),
-                (loggingEnabled.leaves and "ON" or "OFF"), (loggingEnabled.console and "ON" or "OFF"),
-                loggingMode:upper(), (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL")), inline = false}
+            {name = "🔄 **Basic Commands**", value = "──────────────────────────────", inline = false},
+            {name = "?start", value = "Start all logging", inline = true},
+            {name = "?stop", value = "Stop all logging", inline = true},
+            {name = "?start chat", value = "Start chat only", inline = true},
+            {name = "?start joins", value = "Start joins only", inline = true},
+            {name = "?start leaves", value = "Start leaves only", inline = true},
+            {name = "?stop chat", value = "Stop chat only", inline = true},
+            {name = "?stop joins", value = "Stop joins only", inline = true},
+            {name = "?stop leaves", value = "Stop leaves only", inline = true},
+            {name = "?stop specific", value = "Stop player-specific", inline = true},
+            
+            {name = "🎯 **Player Commands**", value = "──────────────────────────────", inline = false},
+            {name = "?log [names]", value = "Log specific players", inline = false},
+            {name = "?whois [player]", value = "Get player info", inline = false},
+            {name = "?msgcount [player/all]", value = "Message counts", inline = false},
+            
+            {name = "📝 **Format Commands**", value = "──────────────────────────────", inline = false},
+            {name = "?simple", value = "Simple chat format", inline = true},
+            {name = "?normal", value = "Normal chat format", inline = true},
+            
+            {name = "ℹ️ **Info Commands**", value = "──────────────────────────────", inline = false},
+            {name = "?server stats", value = "Server statistics", inline = true},
+            {name = "?commands/?help", value = "Show this list", inline = true},
+            
+            {name = "⚙️ **Current Status**", value = "──────────────────────────────", inline = false},
+            {name = "💬 Chat", value = (loggingEnabled.chat and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "🟢 Joins", value = (loggingEnabled.joins and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "🔴 Leaves", value = (loggingEnabled.leaves and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "📝 Mode", value = loggingMode:upper(), inline = true},
+            {name = "🎯 Specific", value = (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL"), inline = true},
+            {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true}
         },
+        footer = {text = "Logger Pro • Live Feed Active"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, false)
-    sendConsoleLog("Commands list requested")
 end
 
 -- ========== CHAT LOGGERS ==========
@@ -252,16 +330,32 @@ local function logChatMessageNormal(player, message)
     end
     
     messageCounts[player.UserId] = (messageCounts[player.UserId] or 0) + 1
+    local gameInfo = getGameInfo()
     
     local embed = {
         title = "💬 **NEW CHAT MESSAGE**",
+        description = "──────────────────────────────",
         color = Colors.CHAT,
         fields = {
-            {name = "👤 User", value = string.format("```📛 %s\n🔰 @%s\n🆔 %d```", player.DisplayName, player.Name, player.UserId), inline = true},
-            {name = "⏰ Time", value = string.format("```🕐 %s\n📅 %s```", os.date("%H:%M:%S"), os.date("%Y-%m-%d")), inline = true},
-            {name = "💭 Message", value = "```" .. message .. "```", inline = false}
+            {name = "👤 **User Information**", value = "──────────────────────────────", inline = false},
+            {name = "📛 Display Name", value = player.DisplayName, inline = true},
+            {name = "🔰 Username", value = "@" .. player.Name, inline = true},
+            {name = "🆔 User ID", value = player.UserId, inline = true},
+            
+            {name = "⏰ **Timestamp**", value = "──────────────────────────────", inline = false},
+            {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
+            {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            
+            {name = "💭 **Message Content**", value = "──────────────────────────────", inline = false},
+            {name = "Message", value = "```" .. message .. "```", inline = false},
+            
+            {name = "📊 **Server Information**", value = "──────────────────────────────", inline = false},
+            {name = "🌍 Server", value = gameInfo.jobId:sub(1,8), inline = true},
+            {name = "👥 Online", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            {name = "📨 Message #", value = messageCounts[player.UserId], inline = true}
         },
         thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
+        footer = {text = "Chat Logger • Live Feed"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, false)
@@ -282,14 +376,20 @@ local function logChatMessageSimple(player, message)
     end
     
     messageCounts[player.UserId] = (messageCounts[player.UserId] or 0) + 1
+    local gameInfo = getGameInfo()
     
     local embed = {
-        title = "💬 **CHAT**",
+        title = "💬 **CHAT MESSAGE**",
+        description = "──────────────────────────────",
         color = Colors.CHAT,
         fields = {
-            {name = "👤 User", value = string.format("**%s** (@%s)", player.DisplayName, player.Name), inline = true},
-            {name = "💭 Message", value = message, inline = false}
+            {name = "👤 User", value = string.format("%s (@%s)", player.DisplayName, player.Name), inline = true},
+            {name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true},
+            {name = "💬 Message", value = message, inline = false},
+            {name = "📊 Info", value = string.format("Msg #%d • %d/%d online", messageCounts[player.UserId], gameInfo.players, gameInfo.maxPlayers), inline = false}
         },
+        thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
+        footer = {text = "Chat Logger • Simple Mode"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, false)
@@ -311,14 +411,27 @@ local function logPlayerJoin(player)
     
     local embed = {
         title = "🟢 **PLAYER JOINED**",
-        description = "A new player has joined!",
+        description = "──────────────────────────────\n**A new player has joined the server!**\n──────────────────────────────",
         color = Colors.JOIN,
         fields = {
-            {name = "👤 Player", value = string.format("```📛 %s\n🔰 @%s\n🆔 %d\n📅 Age: %d days```", player.DisplayName, player.Name, player.UserId, player.AccountAge), inline = true},
-            {name = "⏰ Time", value = string.format("```🕐 %s\n📅 %s```", os.date("%H:%M:%S"), os.date("%Y-%m-%d")), inline = true},
-            {name = "📊 Server", value = string.format("```👥 %d/%d\n📈 +1```", gameInfo.players, gameInfo.maxPlayers), inline = false}
+            {name = "👤 **Player Details**", value = "──────────────────────────────", inline = false},
+            {name = "📛 Display Name", value = player.DisplayName, inline = true},
+            {name = "🔰 Username", value = "@" .. player.Name, inline = true},
+            {name = "🆔 User ID", value = player.UserId, inline = true},
+            {name = "📅 Account Age", value = player.AccountAge .. " days", inline = true},
+            
+            {name = "⏰ **Join Time**", value = "──────────────────────────────", inline = false},
+            {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
+            {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            
+            {name = "📊 **Server Status**", value = "──────────────────────────────", inline = false},
+            {name = "👥 Previous", value = gameInfo.players - 1, inline = true},
+            {name = "👥 Current", value = gameInfo.players, inline = true},
+            {name = "📈 Change", value = "+1", inline = true},
+            {name = "🎯 Max Players", value = gameInfo.maxPlayers, inline = true}
         },
         thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
+        footer = {text = "Join Logger • Live Tracking"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, true)
@@ -331,14 +444,29 @@ local function logPlayerLeave(player)
     
     local embed = {
         title = "🔴 **PLAYER LEFT**",
-        description = "A player has left.",
+        description = "──────────────────────────────\n**A player has left the server**\n──────────────────────────────",
         color = Colors.LEAVE,
         fields = {
-            {name = "👤 Player", value = string.format("```📛 %s\n🔰 @%s\n🆔 %d```", player.DisplayName, player.Name, player.UserId), inline = true},
-            {name = "⏰ Time", value = string.format("```🕐 %s\n📅 %s```", os.date("%H:%M:%S"), os.date("%Y-%m-%d")), inline = true},
-            {name = "📊 Server", value = string.format("```👥 %d/%d\n📉 -1```", gameInfo.players, gameInfo.maxPlayers), inline = false}
+            {name = "👤 **Player Details**", value = "──────────────────────────────", inline = false},
+            {name = "📛 Display Name", value = player.DisplayName, inline = true},
+            {name = "🔰 Username", value = "@" .. player.Name, inline = true},
+            {name = "🆔 User ID", value = player.UserId, inline = true},
+            
+            {name = "⏰ **Leave Time**", value = "──────────────────────────────", inline = false},
+            {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
+            {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            
+            {name = "📊 **Server Status**", value = "──────────────────────────────", inline = false},
+            {name = "👥 Previous", value = gameInfo.players + 1, inline = true},
+            {name = "👥 Current", value = gameInfo.players, inline = true},
+            {name = "📉 Change", value = "-1", inline = true},
+            {name = "🎯 Max Players", value = gameInfo.maxPlayers, inline = true},
+            
+            {name = "📨 **Chat Stats**", value = "──────────────────────────────", inline = false},
+            {name = "💬 Messages", value = messageCounts[player.UserId] or 0, inline = true}
         },
         thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
+        footer = {text = "Leave Logger • Live Tracking"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, true)
@@ -347,7 +475,7 @@ end
 -- ========== COMMAND HANDLERS ==========
 local function handleWhois(args)
     if #args < 2 then
-        sendCommandConfirmation("?whois", "Usage: ?whois [player name]", "⚠️ Help")
+        sendCommandEmbed("?whois", "System", "Error", "Usage: ?whois [player name]")
         return
     end
     
@@ -355,7 +483,7 @@ local function handleWhois(args)
     local matches = findPlayersByPartialName(searchName)
     
     if #matches == 0 then
-        sendCommandConfirmation("?whois", "No player found: " .. searchName, "❌ Not Found")
+        sendCommandEmbed("?whois", "System", "Error", "No player found: " .. searchName)
         return
     end
     
@@ -364,90 +492,135 @@ local function handleWhois(args)
         for _, p in ipairs(matches) do
             table.insert(names, p.Name .. " (" .. p.DisplayName .. ")")
         end
-        sendCommandConfirmation("?whois", "Multiple found:\n" .. table.concat(names, "\n"), "⚠️ Be specific")
+        sendCommandEmbed("?whois", "System", "Warning", "Multiple players found:\n" .. table.concat(names, "\n"))
         return
     end
     
     local target = matches[1]
     local accountAgeDays = target.AccountAge
     local accountCreated = os.date("%Y-%m-%d", os.time() - (accountAgeDays * 86400))
-    local joinTime = target:GetJoinData() and target:GetJoinData().JoinTime or os.time()
-    local timeInServer = math.floor((os.time() - joinTime) / 60)
-    local team = target.Team and target.Team.Name or "No team"
-    local hasCharacter = target.Character and "Yes" or "No"
-    local health = target.Character and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.Health or "N/A"
-    local maxHealth = target.Character and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.MaxHealth or "N/A"
+    local gameInfo = getGameInfo()
     
-    local friendCount = "N/A"
-    pcall(function() friendCount = #target:GetFriends() end)
+    -- Get character info if available
+    local health = "N/A"
+    local maxHealth = "N/A"
+    local position = "N/A"
+    local team = "None"
+    local level = "N/A"
+    local cash = "N/A"
+    
+    pcall(function()
+        if target.Character and target.Character:FindFirstChild("Humanoid") then
+            health = target.Character.Humanoid.Health
+            maxHealth = target.Character.Humanoid.MaxHealth
+            if target.Character:FindFirstChild("HumanoidRootPart") then
+                local pos = target.Character.HumanoidRootPart.Position
+                position = string.format("(%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z)
+            end
+        end
+        if target.Team then
+            team = target.Team.Name
+        end
+        
+        -- Try to get game-specific stats
+        if target:FindFirstChild("leaderstats") then
+            for _, stat in ipairs(target.leaderstats:GetChildren()) do
+                if stat.Name:lower():find("level") then level = stat.Value end
+                if stat.Name:lower():find("cash") or stat.Name:lower():find("money") or stat.Name:lower():find("points") then
+                    cash = stat.Value
+                end
+            end
+        end
+    end)
     
     local embed = {
         title = "🔍 **WHOIS: " .. target.Name .. "**",
+        description = "──────────────────────────────\n**Player Information**\n──────────────────────────────",
         color = Colors.WHOIS,
         thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. target.UserId .. "&width=420&height=420&format=png"},
         fields = {
+            {name = "👤 **Basic Info**", value = "──────────────────────────────", inline = false},
             {name = "👤 Username", value = target.Name, inline = true},
             {name = "📛 Display", value = target.DisplayName, inline = true},
             {name = "🆔 User ID", value = target.UserId, inline = true},
-            {name = "📅 Created", value = accountCreated .. " (" .. accountAgeDays .. " days)", inline = true},
-            {name = "⏱️ Time in Server", value = timeInServer .. " minutes", inline = true},
+            
+            {name = "📅 **Account Info**", value = "──────────────────────────────", inline = false},
+            {name = "📅 Created", value = accountCreated, inline = true},
+            {name = "⏰ Age", value = accountAgeDays .. " days", inline = true},
+            
+            {name = "⚔️ **Game Stats**", value = "──────────────────────────────", inline = false},
+            {name = "📊 Level", value = level, inline = true},
+            {name = "💰 Cash", value = cash, inline = true},
             {name = "👥 Team", value = team, inline = true},
-            {name = "💚 Health", value = health .. "/" .. maxHealth, inline = true},
-            {name = "🤝 Friends", value = friendCount, inline = true},
-            {name = "📊 Messages", value = messageCounts[target.UserId] or 0, inline = true},
-            {name = "🔗 Profile", value = "[Click here](https://www.roblox.com/users/" .. target.UserId .. "/profile)", inline = false}
+            {name = "❤️ Health", value = health .. "/" .. maxHealth, inline = true},
+            {name = "📍 Position", value = position, inline = true},
+            
+            {name = "📊 **Statistics**", value = "──────────────────────────────", inline = false},
+            {name = "💬 Messages", value = messageCounts[target.UserId] or 0, inline = true},
+            {name = "🌍 Server", value = gameInfo.jobId:sub(1,8), inline = true},
+            {name = "👥 Online", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            
+            {name = "🔗 **Links**", value = "──────────────────────────────", inline = false},
+            {name = "Profile", value = "[Click here to view profile](https://www.roblox.com/users/" .. target.UserId .. "/profile)", inline = false}
         },
+        footer = {text = "Whois Logger • Requested at " .. os.date("%H:%M:%S")},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToWebhook(whoisWebhook, embed, "Whois Logger")
-    sendCommandConfirmation("?whois", "Sent info for **" .. target.Name .. "**")
+    sendCommandEmbed("?whois", target.Name, "Success", "Sent info for **" .. target.Name .. "**")
 end
 
 local function handleServerStats()
     local gameInfo = getGameInfo()
     local uptime = math.floor((os.time() - startTime) / 60)
-    
-    local region = "N/A"
-    pcall(function() region = game:GetService("TeleportService"):GetServerLocation() end)
+    local uptimeHours = math.floor(uptime / 60)
+    local uptimeMinutes = uptime % 60
     
     local embed = {
         title = "📊 **SERVER STATISTICS**",
+        description = "──────────────────────────────\n**Current Server Information**\n──────────────────────────────",
         color = Colors.STATS,
         fields = {
-            {name = "🎮 Game", value = gameInfo.name, inline = false},
+            {name = "🎮 **Game Information**", value = "──────────────────────────────", inline = false},
+            {name = "🎮 Name", value = gameInfo.name, inline = false},
             {name = "📍 Place ID", value = gameInfo.placeId, inline = true},
             {name = "🔑 Job ID", value = gameInfo.jobId, inline = true},
-            {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
-            {name = "⏱️ Uptime", value = uptime .. " minutes", inline = true},
-            {name = "🌍 Region", value = region, inline = true},
-            {name = "⏰ Current Time", value = os.date("%Y-%m-%d %H:%M:%S UTC"), inline = false}
+            
+            {name = "👥 **Player Statistics**", value = "──────────────────────────────", inline = false},
+            {name = "👥 Current", value = gameInfo.players, inline = true},
+            {name = "🎯 Max", value = gameInfo.maxPlayers, inline = true},
+            {name = "📊 Available", value = gameInfo.maxPlayers - gameInfo.players, inline = true},
+            
+            {name = "⏱️ **Server Uptime**", value = "──────────────────────────────", inline = false},
+            {name = "⏱️ Minutes", value = uptime .. " min", inline = true},
+            {name = "⏱️ Hours", value = uptimeHours .. "h " .. uptimeMinutes .. "m", inline = true},
+            
+            {name = "⏰ **Time Information**", value = "──────────────────────────────", inline = false},
+            {name = "🕐 Local", value = os.date("%H:%M:%S"), inline = true},
+            {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            {name = "🌍 UTC", value = os.date("!%H:%M:%S"), inline = true}
         },
+        footer = {text = "Server Stats Logger • Real-time Data"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToWebhook(serverStatsWebhook, embed, "Server Stats Logger")
-    sendCommandConfirmation("?server stats", "Server statistics sent")
+    sendCommandEmbed("?server stats", "System", "Success", "Server statistics sent")
 end
 
 local function handleMsgCount(args)
     if #args < 2 then
-        sendCommandConfirmation("?msgcount", "Usage: ?msgcount [player/all/name1,name2]", "⚠️ Help")
+        sendCommandEmbed("?msgcount", "System", "Error", "Usage: ?msgcount [player/all/name1,name2]")
         return
     end
     
     local query = table.concat(args, " "):sub(9):gsub("^%s+", ""):gsub("%s+$", "")
+    local gameInfo = getGameInfo()
     
     if query:lower() == "all" then
         local total = 0
         for _, count in pairs(messageCounts) do
             total = total + count
         end
-        local embed = {
-            title = "📊 **TOTAL MESSAGE COUNT**",
-            description = "All players combined: **" .. total .. "** messages",
-            color = Colors.INFO,
-            fields = {},
-            timestamp = DateTime.now():ToIsoDate()
-        }
         
         local topPlayers = {}
         for userId, count in pairs(messageCounts) do
@@ -457,15 +630,28 @@ local function handleMsgCount(args)
             end
         end
         table.sort(topPlayers, function(a, b) return a.count > b.count end)
+        
         local topStr = ""
-        for i = 1, math.min(5, #topPlayers) do
-            topStr = topStr .. (i) .. ". **" .. topPlayers[i].name .. "**: " .. topPlayers[i].count .. "\n"
+        for i = 1, math.min(10, #topPlayers) do
+            topStr = topStr .. "**" .. i .. ".** " .. topPlayers[i].name .. ": " .. topPlayers[i].count .. " messages\n"
         end
-        if topStr ~= "" then
-            embed.fields = {{name = "🏆 Top Chatters", value = topStr, inline = false}}
-        end
+        
+        local embed = {
+            title = "📊 **TOTAL MESSAGE COUNT**",
+            description = "──────────────────────────────\n**All Players Combined**\n──────────────────────────────",
+            color = Colors.INFO,
+            fields = {
+                {name = "📊 **Statistics**", value = "──────────────────────────────", inline = false},
+                {name = "💬 Total", value = total, inline = true},
+                {name = "👥 Active", value = #topPlayers, inline = true},
+                {name = "👥 Server", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+                {name = "🏆 **Top Chatters**", value = "──────────────────────────────", inline = false},
+                {name = "Leaderboard", value = topStr ~= "" and topStr or "No messages yet", inline = false}
+            },
+            timestamp = DateTime.now():ToIsoDate()
+        }
         sendToWebhook(webhookUrl, embed, "Message Counter")
-        sendCommandConfirmation("?msgcount all", "Total messages: " .. total)
+        sendCommandEmbed("?msgcount all", "System", "Success", "Total messages: " .. total)
         return
     end
     
@@ -482,13 +668,13 @@ local function handleMsgCount(args)
     for _, name in ipairs(names) do
         local matches = findPlayersByPartialName(name)
         if #matches == 0 then
-            table.insert(results, "❌ " .. name .. ": not found")
+            table.insert(results, "❌ **" .. name .. "**: not found")
         elseif #matches > 1 then
             local matchNames = {}
             for _, p in ipairs(matches) do
                 table.insert(matchNames, p.Name)
             end
-            table.insert(results, "⚠️ " .. name .. " matched: " .. table.concat(matchNames, ", "))
+            table.insert(results, "⚠️ **" .. name .. "** → " .. table.concat(matchNames, ", "))
         else
             local player = matches[1]
             local count = messageCounts[player.UserId] or 0
@@ -498,61 +684,17 @@ local function handleMsgCount(args)
     
     local embed = {
         title = "📊 **MESSAGE COUNTS**",
-        description = table.concat(results, "\n"),
+        description = "──────────────────────────────\n**Individual Player Stats**\n──────────────────────────────",
         color = Colors.INFO,
+        fields = {
+            {name = "📊 **Results**", value = "──────────────────────────────", inline = false},
+            {name = "Statistics", value = table.concat(results, "\n"), inline = false},
+            {name = "👥 Server", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true}
+        },
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToWebhook(webhookUrl, embed, "Message Counter")
-    sendCommandConfirmation("?msgcount", "Message counts retrieved")
-end
-
-local function handleScreenshot(args)
-    local target = #args > 1 and args[2]:lower() or "chat"
-    
-    local screenshotData = nil
-    
-    if syn and syn.capture_screenshot then
-        screenshotData = syn.capture_screenshot()
-    elseif screenshot then
-        screenshotData = screenshot()
-    elseif game:GetService("ThumbnailGenerator") and game:GetService("ThumbnailGenerator"):CreateScreenshot then
-        local tg = game:GetService("ThumbnailGenerator")
-        screenshotData = tg:CreateScreenshot(workspace.CurrentCamera:GetViewport())
-    end
-    
-    if screenshotData then
-        local httpService = game:GetService("HttpService")
-        local boundary = "boundary" .. math.random(1000000, 9999999)
-        local body = "--" .. boundary .. "\r\n"
-        body = body .. 'Content-Disposition: form-data; name="file"; filename="screenshot.png"\r\n'
-        body = body .. "Content-Type: image/png\r\n\r\n"
-        body = body .. screenshotData .. "\r\n"
-        body = body .. "--" .. boundary .. "--\r\n"
-        
-        pcall(function()
-            local requestFunc = syn and syn.request or http_request or request
-            if requestFunc then
-                requestFunc({
-                    Url = screenshotWebhook,
-                    Method = "POST",
-                    Headers = {["Content-Type"] = "multipart/form-data; boundary=" .. boundary},
-                    Body = body
-                })
-                sendCommandConfirmation("?ss", "Screenshot sent for **" .. target .. "**")
-            else
-                sendCommandConfirmation("?ss", "Cannot upload screenshot (no request function)", "⚠️")
-            end
-        end)
-    else
-        local embed = {
-            title = "📸 **SCREENSHOT**",
-            description = "Screenshot not supported by this executor.\nTarget: **" .. target .. "**",
-            color = Colors.WARNING,
-            timestamp = DateTime.now():ToIsoDate()
-        }
-        sendToWebhook(screenshotWebhook, embed, "Screenshot Logger")
-        sendCommandConfirmation("?ss", "Screenshot not supported (sent placeholder)")
-    end
+    sendCommandEmbed("?msgcount", "System", "Success", "Message counts retrieved")
 end
 
 -- ========== MAIN COMMAND HANDLER ==========
@@ -564,6 +706,7 @@ local function handleCommand(player, message)
     
     if command == "?commands" or command == "?help" then
         sendCommandsList()
+        sendCommandEmbed("?commands", "System", "Success", "Command list displayed")
         return true
         
     elseif command == "?start" then
@@ -571,25 +714,20 @@ local function handleCommand(player, message)
             loggingEnabled.chat = true
             loggingEnabled.joins = true
             loggingEnabled.leaves = true
-            loggingEnabled.console = true
-            sendCommandConfirmation("?start", "All logging **started**")
-            sendConsoleLog("All logging systems activated")
+            sendCommandEmbed("?start", "System", "Success", "All logging **started**")
         else
             local target = args[2]:lower()
             if target == "chat" then
                 loggingEnabled.chat = true
-                sendCommandConfirmation("?start chat", "Chat logging **started**")
+                sendCommandEmbed("?start chat", "System", "Success", "Chat logging **started**")
             elseif target == "joins" or target == "join" then
                 loggingEnabled.joins = true
-                sendCommandConfirmation("?start joins", "Join logging **started**")
+                sendCommandEmbed("?start joins", "System", "Success", "Join logging **started**")
             elseif target == "leaves" or target == "leave" then
                 loggingEnabled.leaves = true
-                sendCommandConfirmation("?start leaves", "Leave logging **started**")
-            elseif target == "console" then
-                loggingEnabled.console = true
-                sendCommandConfirmation("?start console", "Console logging **started**")
+                sendCommandEmbed("?start leaves", "System", "Success", "Leave logging **started**")
             else
-                sendCommandConfirmation("?start", "Invalid option", "⚠️ Error")
+                sendCommandEmbed("?start", "System", "Error", "Invalid option. Use: ?start [chat/joins/leaves]")
             end
         end
         return true
@@ -599,45 +737,40 @@ local function handleCommand(player, message)
             loggingEnabled.chat = false
             loggingEnabled.joins = false
             loggingEnabled.leaves = false
-            loggingEnabled.console = false
-            sendCommandConfirmation("?stop", "All logging **stopped**")
-            sendConsoleLog("All logging systems deactivated")
+            sendCommandEmbed("?stop", "System", "Success", "All logging **stopped**")
         else
             local target = args[2]:lower()
             if target == "chat" then
                 loggingEnabled.chat = false
-                sendCommandConfirmation("?stop chat", "Chat logging **stopped**")
+                sendCommandEmbed("?stop chat", "System", "Success", "Chat logging **stopped**")
             elseif target == "joins" or target == "join" then
                 loggingEnabled.joins = false
-                sendCommandConfirmation("?stop joins", "Join logging **stopped**")
+                sendCommandEmbed("?stop joins", "System", "Success", "Join logging **stopped**")
             elseif target == "leaves" or target == "leave" then
                 loggingEnabled.leaves = false
-                sendCommandConfirmation("?stop leaves", "Leave logging **stopped**")
-            elseif target == "console" then
-                loggingEnabled.console = false
-                sendCommandConfirmation("?stop console", "Console logging **stopped**")
+                sendCommandEmbed("?stop leaves", "System", "Success", "Leave logging **stopped**")
             elseif target == "specific" then
                 playerLogs = {}
-                sendCommandConfirmation("?stop specific", "Now logging **ALL** players")
+                sendCommandEmbed("?stop specific", "System", "Success", "Now logging **ALL** players")
             else
-                sendCommandConfirmation("?stop", "Invalid option", "⚠️ Error")
+                sendCommandEmbed("?stop", "System", "Error", "Invalid option. Use: ?stop [chat/joins/leaves/specific]")
             end
         end
         return true
         
     elseif command == "?simple" then
         loggingMode = "simple"
-        sendCommandConfirmation("?simple", "Switched to **simple** mode")
+        sendCommandEmbed("?simple", "System", "Success", "Switched to **simple** mode")
         return true
         
     elseif command == "?normal" then
         loggingMode = "normal"
-        sendCommandConfirmation("?normal", "Switched to **normal** mode")
+        sendCommandEmbed("?normal", "System", "Success", "Switched to **normal** mode")
         return true
         
     elseif command == "?log" then
         if #args < 2 then
-            sendCommandConfirmation("?log", "Usage: ?log [player names]", "⚠️ Help")
+            sendCommandEmbed("?log", "System", "Error", "Usage: ?log [player names]")
             return true
         end
         
@@ -674,16 +807,16 @@ local function handleCommand(player, message)
         
         local msg = ""
         if #foundPlayers > 0 then
-            msg = "Now logging: **" .. table.concat(foundPlayers, ", ") .. "**\n"
+            msg = "Now logging: **" .. table.concat(foundPlayers, ", ") .. "**"
         end
         if #notFound > 0 then
-            msg = msg .. "Not found: " .. table.concat(notFound, ", ")
+            msg = msg .. "\nNot found: " .. table.concat(notFound, ", ")
         end
         if #foundPlayers == 0 then
             msg = "No players found"
         end
         
-        sendCommandConfirmation("?log", msg, #foundPlayers > 0 and "✅ Success" or "⚠️ No matches")
+        sendCommandEmbed("?log", "System", #foundPlayers > 0 and "Success" or "Warning", msg)
         return true
         
     elseif command == "?whois" then
@@ -696,10 +829,6 @@ local function handleCommand(player, message)
         
     elseif command == "?msgcount" then
         handleMsgCount(args)
-        return true
-        
-    elseif command == "?ss" then
-        handleScreenshot(args)
         return true
     end
     
@@ -744,34 +873,22 @@ local function setupLogging()
             logChatMessage(player, message)
         end)
     end
-    
-    sendConsoleLog("Logger setup complete - Ready for commands")
-end
-
--- ========== ANTI-DETECTION ==========
-local function antiDetection()
-    getgenv().executor = getExecutorInfo()
-    
-    if syn and syn.console_clear then
-        syn.console_clear()
-    end
-    
-    print("✅ Logger initialized - Live feed active")
-    print("📝 Type ?commands for help")
 end
 
 -- ========== INITIALIZE ==========
-antiDetection()
-setupLogging()
+print("✅ Logger initialized - Live feed active")
+print("📝 Type ?commands for help")
 
--- ========== STATUS MESSAGE ==========
-print("=" .. string.rep("=", 60) .. "=")
-print("🔵 DISCORD LOGGER PRO - COMPLETE EDITION")
-print("=" .. string.rep("=", 60) .. "=")
+spawn(function()
+    setupLogging()
+end)
+
+wait(0.5)
+print("=" .. string.rep("=", 50) .. "=")
+print("🔵 DISCORD LOGGER PRO - PREMIUM EDITION")
+print("=" .. string.rep("=", 50) .. "=")
 print("📡 Status: Connected to Discord")
 print("👤 Account: " .. game:GetService("Players").LocalPlayer.Name)
 print("🎮 Game: " .. getGameInfo().name)
-print("📋 Commands: ?commands for full list")
-print("=" .. string.rep("=", 60) .. "=")
-
-sendConsoleLog("Logger started successfully - All systems online")
+print("📋 Commands: ?commands for list")
+print("=" .. string.rep("=", 50) .. "=")
