@@ -2,16 +2,17 @@
 -- Execute this on your alt account
 
 local Webhooks = {
-    ["status"] = "WEBHOOK_2_URL",
-    ["errors"] = "WEBHOOK_3_URL",
-    ["deaths"] = "WEBHOOK_4_URL",
-    ["chat_public"] = "WEBHOOK_5_URL",
-    ["chat_private"] = "WEBHOOK_6_URL",
-    ["actions"] = "WEBHOOK_7_URL",
-    ["movement"] = "WEBHOOK_8_URL",
-    ["players"] = "WEBHOOK_9_URL",
-    ["debug"] = "WEBHOOK_10_URL"
+    ["status"] = "https://discord.com/api/webhooks/1483203506168135954/tAKlxOQG5pYXf4es7Gwdn1iyYivdFsaGFSjcUQYSnp2-i4UCfwvRy5WlgZHjvdHsta4l", -- Status updates
+    ["errors"] = "https://discord.com/api/webhooks/1483203290316669142/B1xU_L5zsxB3Um_G-TKGuLH-_YRbvDbBBYYB231wVgFl6WGEIsZ6jkTYSrZrhK5RVY_9", -- Error logs
+    ["deaths"] = "https://discord.com/api/webhooks/1483203350760521961/0WmoP7pVklwdrn2CJOV_bWMDkJtB3QIj-adYPgDC-EpIl9Z-hnNleUDN7Yi7zQkQN3QL", -- Death alerts
+    ["chat_public"] = "https://discord.com/api/webhooks/1483203568281325839/5y-BwtJ5cjmb51kXsvxPwgeeJZtHyB36oMf8ourZtf4orVY8nBT6vgwZEWmzsVe3McBr", -- Public chat feed
+    ["chat_private"] = "https://discord.com/api/webhooks/1483203542155137280/Emg65rUxrzSLpHKJ8_qtXEeafR_tUefYSWlpjCYvXcKiSBOJQIuUAmhsvMk6b2rQ1lrA", -- Private chat feed
+    ["actions"] = "https://discord.com/api/webhooks/1483203400538525841/BUJFvfHgw_eV6qDs_fgGEH3GzFoelKQ7wTPBMAViYI4cW6nJSwl8x8eZCDjAY2LZYkDZ", -- All alt actions
+    ["movement"] = "https://discord.com/api/webhooks/1483203228379119801/Ocajpg_NLYy2PcVUM5N-fYoF1WsQoAyu9tRwX_47Raxn35JqNV4uKpJjQs4b39RCFu5r", -- Movement tracking
+    ["players"] = "https://discord.com/api/webhooks/1483203470713552926/oWFtB8WsQAXz8K4U1a1bUNtsP7aAfZXlo5Id7VAtoYlFB0yKdv5bVRKk_BkpRzQY_554", -- Player joins/leaves
+    ["debug"] = "https://discord.com/api/webhooks/1483203590108479648/SM-E_6wUgaMjJnKGTsNViEqssLmc94JTcoP8vtrScyNxhLFIjQ4Z6-oUi1MIGLp5N7GM" -- Debug information
 }
+
 
 -- Services
 local Players = game:GetService("Players")
