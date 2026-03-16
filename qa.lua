@@ -46,7 +46,7 @@ local function sendToDiscwebhook(embedData, useJoinLeave)
     
     local payload = {
         embeds = {embedData},
-        username = "Roblox Logger Pro",
+        username = "Roblox Logger Bot",
         avatar_url = "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
     }
     
