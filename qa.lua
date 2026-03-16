@@ -6,10 +6,10 @@
 -- ========== WEBHOOK CONFIGURATION ==========
 local webhookUrl = "https://discord.com/api/webhooks/1482913836423057428/fYSkY7XfawDG3ClH3tMmsymEzZjqKyiZH4q3LCZSV6_ztlAy7wOkdl22ZYLNZUfQevEi" -- Main webhook for connection & chat
 local joinLeaveWebhook = "https://discord.com/api/webhooks/1482913976294572215/hiFyivZJqHlMtf5e4c_QcIwowxbV2xbqYX4Kt4Mkwyxbigq_mrA-d2xvHhWNtRgL0c7N" -- Separate webhook for joins & leaves
-local consoleWebhook = "https://discord.com/api/webhooks/YOUR_CONSOLE_WEBHOOK_URL_HERE" -- Console webhook for logs
-local whoisWebhook = "https://discord.com/api/webhooks/YOUR_WHOIS_WEBHOOK_URL_HERE" -- For ?whois command
-local serverStatsWebhook = "https://discord.com/api/webhooks/YOUR_SERVER_STATS_WEBHOOK_URL_HERE" -- For ?server stats
-local screenshotWebhook = "https://discord.com/api/webhooks/YOUR_SCREENSHOT_WEBHOOK_URL_HERE" -- For ?ss command
+local consoleWebhook = "https://discord.com/api/webhooks/1482913976294572215/hiFyivZJqHlMtf5e4c_QcIwowxbV2xbqYX4Kt4Mkwyxbigq_mrA-d2xvHhWNtRgL0c7N" -- Console webhook for logs
+local whoisWebhook = "https://discord.com/api/webhooks/1483184762926403846/p4auNyoTdXl79RoY-8v_ngDQiRXS3ulCCHFpH5lWuN5G2w_F_ow6fVACmEOkaIK5S0uC" -- For ?whois command
+local serverStatsWebhook = "https://discord.com/api/webhooks/1483183902783967233/0bR3I2G5qHXGmfP2IpE4tJ0jY7FHz0JeEpwSh4l8_G09tUDeiRzaKsuSlGl7zP0CnApu" -- For ?server stats
+local screenshotWebhook = "https://discord.com/api/webhooks/1483185668040556778/CyfwfPDCqmYiqOl4YHTCLEF0n_jdSj85WiRhUuN-HTIcl9UnuUCwC-AFPZ7gpv24enx8" -- For ?ss command
 
 -- ========== GLOBAL VARIABLES ==========
 local loggingEnabled = {
@@ -125,7 +125,7 @@ local function sendToWebhook(webhookUrl, embedData, username, avatarUrl)
     local httpService = game:GetService("HttpService")
     local payload = {
         embeds = {embedData},
-        username = username or "Roblox Logger",
+        username = username or "Logger",
         avatar_url = avatarUrl or "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
     }
     
@@ -147,7 +147,7 @@ local function sendToWebhook(webhookUrl, embedData, username, avatarUrl)
 end
 
 local function sendToDiscwebhook(embedData, useJoinLeave)
-    sendToWebhook(useJoinLeave and joinLeaveWebhook or webhookUrl, embedData, "Roblox Logger Pro")
+    sendToWebhook(useJoinLeave and joinLeaveWebhook or webhookUrl, embedData, "𝙲𝚊𝚙𝚝𝚊𝚒𝚗 𝙷𝚘𝚘𝚔")
     wait(0.5)
 end
 
