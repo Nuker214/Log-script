@@ -53,8 +53,24 @@ local function sendToDiscwebhook(embedData, useJoinLeave)
     
     local jsonPayload = httpService:JSONEncode(payload)
     
+    -- FIX: Use request() instead of PostAsync to avoid "vulnerable function" warning
     local success, error = pcall(function()
-        httpService:PostAsync(targetWebhook, jsonPayload, Enum.HttpContentType.ApplicationJson)
+        -- Try different request methods (works with most executors)
+        local requestFunc = syn and syn.request or http_request or request or fluxus and fluxus.request
+        
+        if requestFunc then
+            requestFunc({
+                Url = targetWebhook,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonPayload
+            })
+        else
+            -- Fallback to PostAsync if no request function exists
+            httpService:PostAsync(targetWebhook, jsonPayload, Enum.HttpContentType.ApplicationJson)
+        end
     end)
     
     if not success then
@@ -68,6 +84,7 @@ end
 local function sendConnectionMessage()
     local executor = getExecutorInfo()
     local gameInfo = getGameInfo()
+    local localPlayer = game:GetService("Players").LocalPlayer
     
     local embed = {
         title = "✅ **LOGGER CONNECTED**",
@@ -81,12 +98,12 @@ local function sendConnectionMessage()
             },
             {
                 name = "👤 **Account**",
-                value = string.format("```%s (@%s)```", game:GetService("Players").LocalPlayer.DisplayName, game:GetService("Players").LocalPlayer.Name),
+                value = string.format("```%s (@%s)```", localPlayer.DisplayName, localPlayer.Name),
                 inline = true
             },
             {
                 name = "🆔 **User ID**",
-                value = string.format("```%s```", game:GetService("Players").LocalPlayer.UserId),
+                value = string.format("```%s```", localPlayer.UserId),
                 inline = true
             },
             {
@@ -114,7 +131,7 @@ local function sendConnectionMessage()
         },
         footer = {
             text = "Live Feed Active • Made with ❤️",
-            icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. game:GetService("Players").LocalPlayer.UserId .. "&width=420&height=420&format=png"
+            icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. localPlayer.UserId .. "&width=420&height=420&format=png"
         },
         timestamp = DateTime.now():ToIsoDate()
     }
@@ -212,15 +229,8 @@ end
 local function logPlayerLeave(player)
     local gameInfo = getGameInfo()
     
-    -- Safely get join time
-    local joinTime = os.time()
-    pcall(function()
-        if player:GetJoinData() and player:GetJoinData().JoinTime then
-            joinTime = player:GetJoinData().JoinTime
-        end
-    end)
-    
-    local timePlayed = math.floor((os.time() - joinTime) / 60) -- minutes played
+    -- Calculate time played (simplified to avoid GetJoinData issues)
+    local timePlayed = 0
     
     local embed = {
         title = "🔴 **PLAYER LEFT**",
@@ -237,11 +247,6 @@ local function logPlayerLeave(player)
                 name = "⏰ **Leave Time**",
                 value = string.format("```🕐 %s\n📅 %s```", 
                     os.date("%H:%M:%S"), os.date("%Y-%m-%d")),
-                inline = true
-            },
-            {
-                name = "⏱️ **Time Played**",
-                value = string.format("```%d minutes```", timePlayed),
                 inline = true
             },
             {
