@@ -2,9 +2,13 @@ local webhookUrl = "https://discord.com/api/webhooks/1482913836423057428/fYSkY7X
 local joinLeaveWebhook = "https://discord.com/api/webhooks/1482913976294572215/hiFyivZJqHlMtf5e4c_QcIwowxbV2xbqYX4Kt4Mkwyxbigq_mrA-d2xvHhWNtRgL0c7N" -- Separate webhook for joins & leaves
 
 -- Global variables for logging control
-local loggingEnabled = true
+local loggingEnabled = {
+    chat = true,
+    joins = true,
+    leaves = true
+}
 local loggingMode = "normal" -- "normal" or "simple"
-local playerLogs = {} -- Track which players to log
+local playerLogs = {} -- Track which players to log (nil = log all, empty = log none, populated = log specific)
 
 -- Color Constants (Discord color hex values)
 local Colors = {
@@ -73,8 +77,8 @@ local function sendToDiscwebhook(embedData, useJoinLeave)
     wait(0.5)
 end
 
--- Send command confirmation
-local function sendCommandConfirmation(command, message)
+-- Send command confirmation to chat channel
+local function sendCommandConfirmation(command, message, status)
     local embed = {
         title = "⚙️ **COMMAND EXECUTED**",
         description = message,
@@ -87,8 +91,18 @@ local function sendCommandConfirmation(command, message)
             },
             {
                 name = "Status",
-                value = "✅ Success",
+                value = status or "✅ Success",
                 inline = true
+            },
+            {
+                name = "Current Settings",
+                value = string.format("```Chat: %s | Joins: %s | Leaves: %s | Mode: %s | Specific: %s```",
+                    (loggingEnabled.chat and "ON" or "OFF"),
+                    (loggingEnabled.joins and "ON" or "OFF"),
+                    (loggingEnabled.leaves and "ON" or "OFF"),
+                    loggingMode:upper(),
+                    (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL")),
+                inline = false
             }
         },
         timestamp = DateTime.now():ToIsoDate()
@@ -130,12 +144,12 @@ local function sendConnectionMessage()
             },
             {
                 name = "⌨️ **Available Commands**",
-                value = "```?start - Start logging\n?stop - Stop logging\n?log (player) - Log specific player(s)\n?simple - Simple chat format\n?normal - Normal chat format```",
+                value = "```?commands - Show all commands\n?start - Start all logging\n?start chat/joins/leaves - Start specific\n?stop - Stop all logging\n?stop chat/joins/leaves - Stop specific\n?stop specific - Stop player-specific logging\n?log (name) - Log specific player(s)\n?simple - Simple chat format\n?normal - Normal chat format```",
                 inline = false
             }
         },
         footer = {
-            text = "Live Feed Active • Type ?help for commands",
+            text = "Live Feed Active • Type ?commands for help",
             icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. localPlayer.UserId .. "&width=420&height=420&format=png"
         },
         timestamp = DateTime.now():ToIsoDate()
@@ -144,8 +158,64 @@ local function sendConnectionMessage()
     sendToDiscwebhook(embed, false)
 end
 
+-- Send commands list
+local function sendCommandsList()
+    local embed = {
+        title = "📋 **COMMANDS LIST**",
+        color = Colors.INFO,
+        fields = {
+            {
+                name = "🔄 **Basic Commands**",
+                value = "```?start - Start all logging\n?start chat - Start chat logs only\n?start joins - Start join logs only\n?start leaves - Start leave logs only\n?stop - Stop all logging\n?stop chat - Stop chat logs only\n?stop joins - Stop join logs only\n?stop leaves - Stop leave logs only```",
+                inline = false
+            },
+            {
+                name = "🎯 **Player Specific**",
+                value = "```?log (name) - Log specific player(s) (partial names work)\n?stop specific - Stop logging specific players (log all again)```",
+                inline = false
+            },
+            {
+                name = "📝 **Chat Format**",
+                value = "```?simple - Simple chat format (user + message only)\n?normal - Normal detailed format```",
+                inline = false
+            },
+            {
+                name = "ℹ️ **Other**",
+                value = "```?commands - Show this menu```",
+                inline = false
+            },
+            {
+                name = "⚙️ **Current Status**",
+                value = string.format("```Chat: %s | Joins: %s | Leaves: %s | Mode: %s | Specific: %s```",
+                    (loggingEnabled.chat and "ON" or "OFF"),
+                    (loggingEnabled.joins and "ON" or "OFF"),
+                    (loggingEnabled.leaves and "ON" or "OFF"),
+                    loggingMode:upper(),
+                    (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL")),
+                inline = false
+            }
+        },
+        timestamp = DateTime.now():ToIsoDate()
+    }
+    sendToDiscwebhook(embed, false)
+end
+
 -- Normal chat message logger
 local function logChatMessageNormal(player, message)
+    if not loggingEnabled.chat then return end
+    
+    -- Check if player is being specifically logged
+    if playerLogs and #playerLogs > 0 then
+        local shouldLog = false
+        for _, loggedPlayer in ipairs(playerLogs) do
+            if loggedPlayer.Name == player.Name or loggedPlayer.UserId == player.UserId then
+                shouldLog = true
+                break
+            end
+        end
+        if not shouldLog then return end
+    end
+    
     local executor = getExecutorInfo()
     
     local embed = {
@@ -185,6 +255,20 @@ end
 
 -- Simple chat message logger
 local function logChatMessageSimple(player, message)
+    if not loggingEnabled.chat then return end
+    
+    -- Check if player is being specifically logged
+    if playerLogs and #playerLogs > 0 then
+        local shouldLog = false
+        for _, loggedPlayer in ipairs(playerLogs) do
+            if loggedPlayer.Name == player.Name or loggedPlayer.UserId == player.UserId then
+                shouldLog = true
+                break
+            end
+        end
+        if not shouldLog then return end
+    end
+    
     local embed = {
         title = "💬 **CHAT**",
         color = Colors.CHAT,
@@ -208,20 +292,6 @@ end
 
 -- Main chat logger router
 local function logChatMessage(player, message)
-    if not loggingEnabled then return end
-    
-    -- Check if player is being specifically logged
-    if #playerLogs > 0 then
-        local shouldLog = false
-        for _, loggedPlayer in ipairs(playerLogs) do
-            if loggedPlayer.Name == player.Name or loggedPlayer.UserId == player.UserId then
-                shouldLog = true
-                break
-            end
-        end
-        if not shouldLog then return end
-    end
-    
     if loggingMode == "simple" then
         logChatMessageSimple(player, message)
     else
@@ -231,6 +301,8 @@ end
 
 -- Enhanced join logger
 local function logPlayerJoin(player)
+    if not loggingEnabled.joins then return end
+    
     local gameInfo = getGameInfo()
     
     local embed = {
@@ -272,6 +344,8 @@ end
 
 -- Enhanced leave logger
 local function logPlayerLeave(player)
+    if not loggingEnabled.leaves then return end
+    
     local gameInfo = getGameInfo()
     
     local embed = {
@@ -311,6 +385,22 @@ local function logPlayerLeave(player)
     sendToDiscwebhook(embed, true)
 end
 
+-- Find players by partial name
+local function findPlayersByPartialName(partial)
+    partial = partial:lower()
+    local matches = {}
+    local players = game:GetService("Players"):GetPlayers()
+    
+    for _, player in ipairs(players) do
+        if player.Name:lower():find(partial) or 
+           (player.DisplayName and player.DisplayName:lower():find(partial)) then
+            table.insert(matches, player)
+        end
+    end
+    
+    return matches
+end
+
 -- Command handler
 local function handleCommand(player, message)
     if player ~= game:GetService("Players").LocalPlayer then return false end
@@ -318,14 +408,59 @@ local function handleCommand(player, message)
     local args = message:split(" ")
     local command = args[1]:lower()
     
-    if command == "?start" then
-        loggingEnabled = true
-        sendCommandConfirmation("?start", "Logging has been **started**")
+    if command == "?commands" or command == "?help" then
+        sendCommandsList()
+        return true
+        
+    elseif command == "?start" then
+        if #args == 1 then
+            -- Start all
+            loggingEnabled.chat = true
+            loggingEnabled.joins = true
+            loggingEnabled.leaves = true
+            sendCommandConfirmation("?start", "All logging has been **started**")
+        else
+            local target = args[2]:lower()
+            if target == "chat" then
+                loggingEnabled.chat = true
+                sendCommandConfirmation("?start chat", "Chat logging has been **started**")
+            elseif target == "joins" or target == "join" then
+                loggingEnabled.joins = true
+                sendCommandConfirmation("?start joins", "Join logging has been **started**")
+            elseif target == "leaves" or target == "leave" then
+                loggingEnabled.leaves = true
+                sendCommandConfirmation("?start leaves", "Leave logging has been **started**")
+            else
+                sendCommandConfirmation("?start", "Invalid option. Use: ?start [chat/joins/leaves]", "⚠️ Error")
+            end
+        end
         return true
         
     elseif command == "?stop" then
-        loggingEnabled = false
-        sendCommandConfirmation("?stop", "Logging has been **stopped**")
+        if #args == 1 then
+            -- Stop all
+            loggingEnabled.chat = false
+            loggingEnabled.joins = false
+            loggingEnabled.leaves = false
+            sendCommandConfirmation("?stop", "All logging has been **stopped**")
+        else
+            local target = args[2]:lower()
+            if target == "chat" then
+                loggingEnabled.chat = false
+                sendCommandConfirmation("?stop chat", "Chat logging has been **stopped**")
+            elseif target == "joins" or target == "join" then
+                loggingEnabled.joins = false
+                sendCommandConfirmation("?stop joins", "Join logging has been **stopped**")
+            elseif target == "leaves" or target == "leave" then
+                loggingEnabled.leaves = false
+                sendCommandConfirmation("?stop leaves", "Leave logging has been **stopped**")
+            elseif target == "specific" then
+                playerLogs = {}
+                sendCommandConfirmation("?stop specific", "Now logging **ALL** players again")
+            else
+                sendCommandConfirmation("?stop", "Invalid option. Use: ?stop [chat/joins/leaves/specific]", "⚠️ Error")
+            end
+        end
         return true
         
     elseif command == "?simple" then
@@ -340,31 +475,66 @@ local function handleCommand(player, message)
         
     elseif command == "?log" then
         if #args < 2 then
-            sendCommandConfirmation("?log", "Usage: ?log Player1, Player2, ...")
+            sendCommandConfirmation("?log", "Usage: ?log [player names] - partial names work!", "⚠️ Help")
             return true
         end
         
         -- Clear previous player logs
         playerLogs = {}
         
-        -- Parse player names
-        local playerNames = table.concat(args, " "):sub(5):split(",")
-        local foundPlayers = {}
+        -- Parse player names (everything after ?log)
+        local searchTerms = table.concat(args, " "):sub(5)
+        local terms = {}
         
-        for _, name in ipairs(playerNames) do
-            name = name:gsub("^%s+", ""):gsub("%s+$", "") -- Trim whitespace
-            local targetPlayer = game:GetService("Players"):FindFirstChild(name)
-            if targetPlayer then
-                table.insert(playerLogs, targetPlayer)
-                table.insert(foundPlayers, name)
+        -- Split by commas or spaces
+        if searchTerms:find(",") then
+            terms = searchTerms:split(",")
+        else
+            terms = searchTerms:split(" ")
+        end
+        
+        local foundPlayers = {}
+        local notFound = {}
+        
+        for _, term in ipairs(terms) do
+            term = term:gsub("^%s+", ""):gsub("%s+$", "") -- Trim
+            if term ~= "" then
+                local matches = findPlayersByPartialName(term)
+                if #matches > 0 then
+                    for _, match in ipairs(matches) do
+                        -- Avoid duplicates
+                        local alreadyAdded = false
+                        for _, p in ipairs(playerLogs) do
+                            if p.Name == match.Name then
+                                alreadyAdded = true
+                                break
+                            end
+                        end
+                        if not alreadyAdded then
+                            table.insert(playerLogs, match)
+                            table.insert(foundPlayers, match.Name .. " (" .. match.DisplayName .. ")")
+                        end
+                    end
+                else
+                    table.insert(notFound, term)
+                end
             end
         end
         
+        local message = ""
         if #foundPlayers > 0 then
-            sendCommandConfirmation("?log", "Now logging: **" .. table.concat(foundPlayers, ", ") .. "**")
-        else
-            sendCommandConfirmation("?log", "No valid players found")
+            message = "Now logging: **" .. table.concat(foundPlayers, ", ") .. "**\n"
         end
+        if #notFound > 0 then
+            message = message .. "Not found: " .. table.concat(notFound, ", ")
+        end
+        
+        if #foundPlayers == 0 then
+            message = "No players found matching your search"
+            playerLogs = {} -- Reset if none found
+        end
+        
+        sendCommandConfirmation("?log", message, #foundPlayers > 0 and "✅ Success" or "⚠️ No matches")
         return true
     end
     
@@ -428,7 +598,7 @@ local function antiDetection()
     end
     
     print("✅ Logger initialized - Live feed active")
-    print("📝 Commands: ?start, ?stop, ?log, ?simple, ?normal")
+    print("📝 Type ?commands for help")
 end
 
 -- Initialize everything
@@ -442,5 +612,5 @@ print("=" .. string.rep("=", 50) .. "=")
 print("📡 Status: Connected to Discord")
 print("👤 Account: " .. game:GetService("Players").LocalPlayer.Name)
 print("🎮 Game: " .. getGameInfo().name)
-print("⌨️ Commands: ?start, ?stop, ?log, ?simple, ?normal")
+print("⌨️ Commands: ?commands for help")
 print("=" .. string.rep("=", 50) .. "=")
