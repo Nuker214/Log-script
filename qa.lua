@@ -1,6 +1,11 @@
 local webhookUrl = "https://discord.com/api/webhooks/1482913836423057428/fYSkY7XfawDG3ClH3tMmsymEzZjqKyiZH4q3LCZSV6_ztlAy7wOkdl22ZYLNZUfQevEi" -- Main webhook for connection & chat
 local joinLeaveWebhook = "https://discord.com/api/webhooks/1482913976294572215/hiFyivZJqHlMtf5e4c_QcIwowxbV2xbqYX4Kt4Mkwyxbigq_mrA-d2xvHhWNtRgL0c7N" -- Separate webhook for joins & leaves
 
+-- Global variables for logging control
+local loggingEnabled = true
+local loggingMode = "normal" -- "normal" or "simple"
+local playerLogs = {} -- Track which players to log
+
 -- Color Constants (Discord color hex values)
 local Colors = {
     CONNECT = 5763719,    -- Green
@@ -8,13 +13,14 @@ local Colors = {
     JOIN = 3066993,       -- Bright Green
     LEAVE = 15158332,     -- Red
     INFO = 5814783,       -- Blue
-    WARNING = 16776960    -- Yellow
+    WARNING = 16776960,   -- Yellow
+    COMMAND = 15277667    -- Pink/Purple for commands
 }
 
--- Function to get executor info (spoofs as different executors for safety)
+-- Function to get executor info
 local function getExecutorInfo()
     local executorInfo = {
-        name = "Swift" .. math.random(100, 999), -- Random executor name
+        name = "Swift" .. math.random(100, 999),
         version = "v" .. math.random(1, 3) .. "." .. math.random(0, 9),
         build = "Premium"
     }
@@ -33,17 +39,10 @@ local function getGameInfo()
     return gameInfo
 end
 
--- Enhanced Discord webhook sender with embed support (supports multiple webhooks)
+-- Discord webhook sender
 local function sendToDiscwebhook(embedData, useJoinLeave)
     local httpService = game:GetService("HttpService")
-    
-    -- Choose which webhook to use
     local targetWebhook = useJoinLeave and joinLeaveWebhook or webhookUrl
-    
-    if not targetWebhook or targetWebhook == "YOUR_JOIN_LEAVE_WEBHOOK_URL_HERE" or targetWebhook == "YOUR_MAIN_WEBHOOK_URL_HERE" then
-        warn("❌ Webhook not configured properly!")
-        return
-    end
     
     local payload = {
         embeds = {embedData},
@@ -53,34 +52,51 @@ local function sendToDiscwebhook(embedData, useJoinLeave)
     
     local jsonPayload = httpService:JSONEncode(payload)
     
-    -- FIX: Use request() instead of PostAsync to avoid "vulnerable function" warning
     local success, error = pcall(function()
-        -- Try different request methods (works with most executors)
         local requestFunc = syn and syn.request or http_request or request or fluxus and fluxus.request
-        
         if requestFunc then
             requestFunc({
                 Url = targetWebhook,
                 Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
+                Headers = {["Content-Type"] = "application/json"},
                 Body = jsonPayload
             })
         else
-            -- Fallback to PostAsync if no request function exists
             httpService:PostAsync(targetWebhook, jsonPayload, Enum.HttpContentType.ApplicationJson)
         end
     end)
     
     if not success then
-        warn("❌ Webhook Error (" .. (useJoinLeave and "Join/Leave" or "Main") .. "): " .. tostring(error))
+        warn("❌ Webhook Error: " .. tostring(error))
     end
     
-    wait(0.5) -- Rate limit prevention
+    wait(0.5)
 end
 
--- Send connection message when script starts
+-- Send command confirmation
+local function sendCommandConfirmation(command, message)
+    local embed = {
+        title = "⚙️ **COMMAND EXECUTED**",
+        description = message,
+        color = Colors.COMMAND,
+        fields = {
+            {
+                name = "Command",
+                value = "`" .. command .. "`",
+                inline = true
+            },
+            {
+                name = "Status",
+                value = "✅ Success",
+                inline = true
+            }
+        },
+        timestamp = DateTime.now():ToIsoDate()
+    }
+    sendToDiscwebhook(embed, false)
+end
+
+-- Send connection message
 local function sendConnectionMessage()
     local executor = getExecutorInfo()
     local gameInfo = getGameInfo()
@@ -113,34 +129,23 @@ local function sendConnectionMessage()
                 inline = false
             },
             {
-                name = "⏰ **Connected At**",
-                value = string.format("```%s (UTC)```", os.date("%Y-%m-%d %H:%M:%S")),
-                inline = true
-            },
-            {
-                name = "🌐 **Server Region**",
-                value = "```Auto-detected```",
-                inline = true
-            },
-            {
-                name = "📢 **Webhook Setup**",
-                value = string.format("```✅ Main Webhook: Connected\n✅ Join/Leave Webhook: %s```", 
-                    (joinLeaveWebhook ~= "YOUR_JOIN_LEAVE_WEBHOOK_URL_HERE" and "Connected" or "Not Set")),
+                name = "⌨️ **Available Commands**",
+                value = "```?start - Start logging\n?stop - Stop logging\n?log (player) - Log specific player(s)\n?simple - Simple chat format\n?normal - Normal chat format```",
                 inline = false
             }
         },
         footer = {
-            text = "Live Feed Active • Made with ❤️",
+            text = "Live Feed Active • Type ?help for commands",
             icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. localPlayer.UserId .. "&width=420&height=420&format=png"
         },
         timestamp = DateTime.now():ToIsoDate()
     }
     
-    sendToDiscwebhook(embed, false) -- Send to main webhook
+    sendToDiscwebhook(embed, false)
 end
 
--- Enhanced chat message logger
-local function logChatMessage(player, message)
+-- Normal chat message logger
+local function logChatMessageNormal(player, message)
     local executor = getExecutorInfo()
     
     local embed = {
@@ -163,12 +168,6 @@ local function logChatMessage(player, message)
                 name = "💭 **Message Content**",
                 value = "```" .. message .. "```",
                 inline = false
-            },
-            {
-                name = "📊 **Additional Info**",
-                value = string.format("```🌍 Server: %s\n👥 Online: %d```", 
-                    game.JobId:sub(1, 8), #game:GetService("Players"):GetPlayers()),
-                inline = false
             }
         },
         thumbnail = {
@@ -181,10 +180,56 @@ local function logChatMessage(player, message)
         timestamp = DateTime.now():ToIsoDate()
     }
     
-    sendToDiscwebhook(embed, false) -- Send to main webhook
+    sendToDiscwebhook(embed, false)
 end
 
--- Enhanced join logger (sends to join/leave webhook)
+-- Simple chat message logger
+local function logChatMessageSimple(player, message)
+    local embed = {
+        title = "💬 **CHAT**",
+        color = Colors.CHAT,
+        fields = {
+            {
+                name = "👤 **User**",
+                value = string.format("**%s** (@%s)", player.DisplayName, player.Name),
+                inline = true
+            },
+            {
+                name = "💭 **Message**",
+                value = message,
+                inline = false
+            }
+        },
+        timestamp = DateTime.now():ToIsoDate()
+    }
+    
+    sendToDiscwebhook(embed, false)
+end
+
+-- Main chat logger router
+local function logChatMessage(player, message)
+    if not loggingEnabled then return end
+    
+    -- Check if player is being specifically logged
+    if #playerLogs > 0 then
+        local shouldLog = false
+        for _, loggedPlayer in ipairs(playerLogs) do
+            if loggedPlayer.Name == player.Name or loggedPlayer.UserId == player.UserId then
+                shouldLog = true
+                break
+            end
+        end
+        if not shouldLog then return end
+    end
+    
+    if loggingMode == "simple" then
+        logChatMessageSimple(player, message)
+    else
+        logChatMessageNormal(player, message)
+    end
+end
+
+-- Enhanced join logger
 local function logPlayerJoin(player)
     local gameInfo = getGameInfo()
     
@@ -222,15 +267,12 @@ local function logPlayerJoin(player)
         timestamp = DateTime.now():ToIsoDate()
     }
     
-    sendToDiscwebhook(embed, true) -- Send to join/leave webhook
+    sendToDiscwebhook(embed, true)
 end
 
--- Enhanced leave logger (sends to join/leave webhook)
+-- Enhanced leave logger
 local function logPlayerLeave(player)
     local gameInfo = getGameInfo()
-    
-    -- Calculate time played (simplified to avoid GetJoinData issues)
-    local timePlayed = 0
     
     local embed = {
         title = "🔴 **PLAYER LEFT**",
@@ -266,7 +308,67 @@ local function logPlayerLeave(player)
         timestamp = DateTime.now():ToIsoDate()
     }
     
-    sendToDiscwebhook(embed, true) -- Send to join/leave webhook
+    sendToDiscwebhook(embed, true)
+end
+
+-- Command handler
+local function handleCommand(player, message)
+    if player ~= game:GetService("Players").LocalPlayer then return false end
+    
+    local args = message:split(" ")
+    local command = args[1]:lower()
+    
+    if command == "?start" then
+        loggingEnabled = true
+        sendCommandConfirmation("?start", "Logging has been **started**")
+        return true
+        
+    elseif command == "?stop" then
+        loggingEnabled = false
+        sendCommandConfirmation("?stop", "Logging has been **stopped**")
+        return true
+        
+    elseif command == "?simple" then
+        loggingMode = "simple"
+        sendCommandConfirmation("?simple", "Switched to **simple** logging mode")
+        return true
+        
+    elseif command == "?normal" then
+        loggingMode = "normal"
+        sendCommandConfirmation("?normal", "Switched to **normal** logging mode")
+        return true
+        
+    elseif command == "?log" then
+        if #args < 2 then
+            sendCommandConfirmation("?log", "Usage: ?log Player1, Player2, ...")
+            return true
+        end
+        
+        -- Clear previous player logs
+        playerLogs = {}
+        
+        -- Parse player names
+        local playerNames = table.concat(args, " "):sub(5):split(",")
+        local foundPlayers = {}
+        
+        for _, name in ipairs(playerNames) do
+            name = name:gsub("^%s+", ""):gsub("%s+$", "") -- Trim whitespace
+            local targetPlayer = game:GetService("Players"):FindFirstChild(name)
+            if targetPlayer then
+                table.insert(playerLogs, targetPlayer)
+                table.insert(foundPlayers, name)
+            end
+        end
+        
+        if #foundPlayers > 0 then
+            sendCommandConfirmation("?log", "Now logging: **" .. table.concat(foundPlayers, ", ") .. "**")
+        else
+            sendCommandConfirmation("?log", "No valid players found")
+        end
+        return true
+    end
+    
+    return false
 end
 
 -- Setup all logging
@@ -284,6 +386,11 @@ local function setupLogging()
             logPlayerJoin(player)
         end
     end
+    
+    -- Monitor chat for commands and messages
+    localPlayer.Chatted:Connect(function(message)
+        handleCommand(localPlayer, message)
+    end)
     
     -- Monitor new players
     players.PlayerAdded:Connect(function(player)
@@ -310,53 +417,30 @@ local function setupLogging()
             logChatMessage(player, message)
         end)
     end
-    
-    -- Log when script stops (optional)
-    game:BindToClose(function()
-        local embed = {
-            title = "🔌 **LOGGER DISCONNECTED**",
-            description = "Live feed has been terminated.",
-            color = Colors.WARNING,
-            fields = {
-                {
-                    name = "⏰ **Disconnected At**",
-                    value = string.format("```%s (UTC)```", os.date("%Y-%m-%d %H:%M:%S")),
-                    inline = false
-                }
-            },
-            footer = {
-                text = "Session Ended",
-                icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=1&width=420&height=420&format=png"
-            },
-            timestamp = DateTime.now():ToIsoDate()
-        }
-        sendToDiscwebhook(embed, false) -- Send to main webhook
-    end)
 end
 
 -- Anti-detection and stealth
 local function antiDetection()
-    -- Spoof executor info
     getgenv().executor = getExecutorInfo()
     
-    -- Clear console (if supported)
     if syn and syn.console_clear then
         syn.console_clear()
     end
     
     print("✅ Logger initialized - Live feed active")
+    print("📝 Commands: ?start, ?stop, ?log, ?simple, ?normal")
 end
 
 -- Initialize everything
 antiDetection()
 setupLogging()
 
--- Status message in console
+-- Status message
 print("=" .. string.rep("=", 50) .. "=")
 print("🔵 DISCORD LOGGER PRO - LIVE")
 print("=" .. string.rep("=", 50) .. "=")
 print("📡 Status: Connected to Discord")
 print("👤 Account: " .. game:GetService("Players").LocalPlayer.Name)
 print("🎮 Game: " .. getGameInfo().name)
-print("⏰ Started: " .. os.date("%H:%M:%S"))
+print("⌨️ Commands: ?start, ?stop, ?log, ?simple, ?normal")
 print("=" .. string.rep("=", 50) .. "=")
