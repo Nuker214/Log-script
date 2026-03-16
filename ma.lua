@@ -11,7 +11,7 @@ local Webhooks = {
     ["debug"] = "https://discord.com/api/webhooks/1483203590108479648/SM-E_6wUgaMjJnKGTsNViEqssLmc94JTcoP8vtrScyNxhLFIjQ4Z6-oUi1MIGLp5N7GM" -- Debug information
 }
 
-local altName = "AltAccountName" -- Your alt's username
+local altName = "Local_TestBot" -- Your alt's username
 local cmdPrefix = "!" -- Command prefix
 
 -- Services
