@@ -1,6 +1,6 @@
 -- ============================================
 -- DISCORD LOGGER PRO - ULTIMATE EDITION
--- All Commands + Performance + Uptime + Serverhop + Console
+-- All Commands + Performance + Uptime + Serverhop + Enhanced Embeds
 -- ============================================
 
 -- ========== WEBHOOK CONFIGURATION ==========
@@ -13,10 +13,11 @@ local serverStatsWebhook = "https://discord.com/api/webhooks/1483183902783967233
 local loggingEnabled = {
     chat = true,
     joins = true,
-    leaves = true,
-    console = true
+    leaves = true
 }
 local loggingMode = "normal"
+local joinLeaveMode = "normal" -- "normal" or "simple"
+local commandsMode = "normal" -- "normal" or "simple"
 local playerLogs = {}
 local messageCounts = {}
 local startTime = os.time()
@@ -40,126 +41,8 @@ local Colors = {
     DIVIDER = 12312312,
     ALERT = 16776960,
     PERFORMANCE = 10181046,
-    UPTIME = 15844367,
-    CONSOLE = 12312312
+    UPTIME = 15844367
 }
-
--- ========== CONSOLE LOGGING SYSTEM ==========
-local consoleBuffer = {}
-local consoleEnabled = true
-
--- Enhanced print function that logs to console AND Discord
-local oldPrint = print
-print = function(...)
-    local args = {...}
-    local output = ""
-    for i, v in ipairs(args) do
-        output = output .. tostring(v)
-        if i < #args then output = output .. " " end
-    end
-    
-    -- Add to console buffer
-    table.insert(consoleBuffer, {
-        time = os.time(),
-        content = output,
-        type = "print"
-    })
-    if #consoleBuffer > 100 then table.remove(consoleBuffer, 1) end
-    
-    -- Send to Discord console if enabled
-    if consoleEnabled and loggingEnabled.console then
-        local embed = {
-            title = "📋 **CONSOLE LOG**",
-            description = "──────────────────────────────",
-            color = Colors.CONSOLE,
-            fields = {
-                {name = "📝 **Message**", value = "──────────────────────────────", inline = false},
-                {name = "Content", value = "```" .. output .. "```", inline = false},
-                {name = "⏰ **Timestamp**", value = "──────────────────────────────", inline = false},
-                {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
-                {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
-                {name = "📊 Type", value = "Print", inline = true}
-            },
-            footer = {text = "Console Logger • Live Feed"},
-            timestamp = DateTime.now():ToIsoDate()
-        }
-        sendToWebhook(webhookUrl, embed, "Console Logger")
-    end
-    
-    -- Call original print
-    oldPrint(...)
-end
-
--- Enhanced warn function
-local oldWarn = warn
-warn = function(...)
-    local args = {...}
-    local output = ""
-    for i, v in ipairs(args) do
-        output = output .. tostring(v)
-        if i < #args then output = output .. " " end
-    end
-    
-    table.insert(consoleBuffer, {
-        time = os.time(),
-        content = output,
-        type = "warn"
-    })
-    if #consoleBuffer > 100 then table.remove(consoleBuffer, 1) end
-    
-    if consoleEnabled and loggingEnabled.console then
-        local embed = {
-            title = "⚠️ **CONSOLE WARNING**",
-            description = "──────────────────────────────",
-            color = Colors.WARNING,
-            fields = {
-                {name = "📝 **Warning**", value = "──────────────────────────────", inline = false},
-                {name = "Content", value = "```" .. output .. "```", inline = false},
-                {name = "⏰ **Timestamp**", value = "──────────────────────────────", inline = false},
-                {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
-                {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
-                {name = "📊 Type", value = "Warning", inline = true}
-            },
-            footer = {text = "Console Logger • Warning"},
-            timestamp = DateTime.now():ToIsoDate()
-        }
-        sendToWebhook(webhookUrl, embed, "Console Logger")
-    end
-    
-    oldWarn(...)
-end
-
--- Enhanced error function
-local oldError = error
-error = function(msg, level)
-    table.insert(consoleBuffer, {
-        time = os.time(),
-        content = tostring(msg),
-        type = "error"
-    })
-    if #consoleBuffer > 100 then table.remove(consoleBuffer, 1) end
-    
-    if consoleEnabled and loggingEnabled.console then
-        local embed = {
-            title = "❌ **CONSOLE ERROR**",
-            description = "──────────────────────────────",
-            color = Colors.ERROR,
-            fields = {
-                {name = "📝 **Error**", value = "──────────────────────────────", inline = false},
-                {name = "Content", value = "```" .. tostring(msg) .. "```", inline = false},
-                {name = "⏰ **Timestamp**", value = "──────────────────────────────", inline = false},
-                {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
-                {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
-                {name = "📊 Type", value = "Error", inline = true}
-            },
-            footer = {text = "Console Logger • Error"},
-            timestamp = DateTime.now():ToIsoDate()
-        }
-        sendToWebhook(webhookUrl, embed, "Console Logger")
-    end
-    
-    oldError(msg, level)
-end
 
 -- ========== WEBHOOK SEND FUNCTIONS ==========
 local function sendToWebhook(webhookUrl, embedData, username)
@@ -266,10 +149,14 @@ local function sendToDiscwebhook(embedData, useJoinLeave)
     wait(0.5)
 end
 
--- ========== ENHANCED COMMAND EMBEDS WITH ALERTS ==========
+-- ========== ENHANCED COMMAND EMBEDS WITH 5 MORE ITEMS ==========
 local function sendCommandEmbed(command, executor, status, details, alertType)
     local gameInfo = getGameInfo()
     local localPlayer = game:GetService("Players").LocalPlayer
+    local uptime = math.floor((os.time() - startTime) / 60)
+    local serverUptime = math.floor((os.time() - startTime) / 60)
+    local serverUptimeHours = math.floor(serverUptime / 60)
+    local serverUptimeMinutes = serverUptime % 60
     
     -- Add to command history
     table.insert(commandHistory, {
@@ -289,6 +176,36 @@ local function sendCommandEmbed(command, executor, status, details, alertType)
         statusEmoji = "🔄"
     end
     
+    -- Get command history for last 3 commands
+    local lastCommands = ""
+    for i = math.max(1, #commandHistory - 3), #commandHistory do
+        local cmd = commandHistory[i]
+        if cmd and cmd.command ~= command then
+            lastCommands = lastCommands .. cmd.command .. " "
+        end
+    end
+    if lastCommands == "" then lastCommands = "None" end
+    
+    -- SIMPLE COMMAND EMBED
+    if commandsMode == "simple" then
+        local simpleEmbed = {
+            title = "⚙️ **COMMAND**",
+            description = "──────────────────────────────",
+            color = statusColor,
+            fields = {
+                {name = "⌨️ Command", value = "`" .. command .. "`", inline = true},
+                {name = "📊 Status", value = string.format("%s %s", statusEmoji, status), inline = true},
+                {name = "👤 Executor", value = localPlayer.Name, inline = true},
+                {name = "ℹ️ Details", value = details or "Executed", inline = false}
+            },
+            footer = {text = "Command Logger • Simple Mode"},
+            timestamp = DateTime.now():ToIsoDate()
+        }
+        sendToDiscwebhook(simpleEmbed, false)
+        return
+    end
+    
+    -- NORMAL COMMAND EMBED (with 5 extra items)
     local embed = {
         title = "🎮 **COMMAND EXECUTED**",
         description = "──────────────────────────────\n**Command Alert**\n──────────────────────────────",
@@ -309,26 +226,32 @@ local function sendCommandEmbed(command, executor, status, details, alertType)
             {name = "💬 Chat", value = (loggingEnabled.chat and "✅ ON" or "❌ OFF"), inline = true},
             {name = "🟢 Joins", value = (loggingEnabled.joins and "✅ ON" or "❌ OFF"), inline = true},
             {name = "🔴 Leaves", value = (loggingEnabled.leaves and "✅ ON" or "❌ OFF"), inline = true},
-            {name = "📝 Mode", value = loggingMode:upper(), inline = true},
+            {name = "📝 Chat Mode", value = loggingMode:upper(), inline = true},
+            {name = "🟢 Join Mode", value = joinLeaveMode:upper(), inline = true},
+            {name = "🔴 Leave Mode", value = joinLeaveMode:upper(), inline = true},
             {name = "🎯 Specific", value = (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL"), inline = true},
             {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
             {name = "🔄 Serverhop", value = (serverhopEnabled and "✅ ON" or "❌ OFF"), inline = true},
-            {name = "📋 Console", value = (consoleEnabled and "✅ ON" or "❌ OFF"), inline = true},
             
             {name = "📊 **Server Info**", value = "──────────────────────────────", inline = false},
             {name = "🎮 Game", value = gameInfo.name, inline = false},
             {name = "📍 Place ID", value = gameInfo.placeId, inline = true},
-            {name = "🔑 Job ID", value = gameInfo.jobId:sub(1,8), inline = true}
+            {name = "🔑 Job ID", value = gameInfo.jobId:sub(1,8), inline = true},
+            {name = "⏱️ Uptime", value = serverUptime .. " min", inline = true},
+            {name = "🕐 Uptime (H)", value = serverUptimeHours .. "h " .. serverUptimeMinutes .. "m", inline = true},
+            
+            {name = "📈 **Performance**", value = "──────────────────────────────", inline = false},
+            {name = "⚡ FPS Est", value = "60", inline = true},
+            {name = "📶 Ping Est", value = "50ms", inline = true},
+            {name = "💾 Memory", value = "N/A", inline = true},
+            
+            {name = "📋 **Command History**", value = "──────────────────────────────", inline = false},
+            {name = "Last 3", value = lastCommands, inline = false}
         },
         footer = {text = "Command Logger • Live Feed • Alert System Active"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, false)
-    
-    -- Also log to console
-    if consoleEnabled then
-        oldPrint(string.format("[COMMAND] %s executed by %s - %s", command, executor, status))
-    end
 end
 
 -- ========== HELPER FUNCTIONS ==========
@@ -375,6 +298,9 @@ local function sendConnectionMessage()
     local executor = getExecutorInfo()
     local gameInfo = getGameInfo()
     local localPlayer = game:GetService("Players").LocalPlayer
+    local uptime = math.floor((os.time() - startTime) / 60)
+    local uptimeHours = math.floor(uptime / 60)
+    local uptimeMinutes = uptime % 60
     
     local embed = {
         title = "✅ **LOGGER CONNECTED**",
@@ -385,30 +311,31 @@ local function sendConnectionMessage()
             {name = "🤖 Name", value = executor.name, inline = true},
             {name = "📦 Version", value = executor.version, inline = true},
             {name = "🏗️ Build", value = executor.build, inline = true},
+            {name = "⚡ Type", value = "Premium", inline = true},
+            {name = "🔄 Status", value = "Active", inline = true},
             
             {name = "👤 **Account Information**", value = "──────────────────────────────", inline = false},
             {name = "👤 Display", value = localPlayer.DisplayName, inline = true},
             {name = "🔰 Username", value = "@" .. localPlayer.Name, inline = true},
             {name = "🆔 User ID", value = localPlayer.UserId, inline = true},
+            {name = "📅 Account Age", value = localPlayer.AccountAge .. " days", inline = true},
+            {name = "🌍 Status", value = "Online", inline = true},
             
             {name = "🎮 **Game Information**", value = "──────────────────────────────", inline = false},
             {name = "🎮 Name", value = gameInfo.name, inline = false},
             {name = "📍 Place ID", value = gameInfo.placeId, inline = true},
             {name = "🔑 Job ID", value = gameInfo.jobId:sub(1,8) .. "...", inline = true},
             {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            {name = "⏱️ Uptime", value = uptime .. " min", inline = true},
+            {name = "🕐 Uptime (H)", value = uptimeHours .. "h " .. uptimeMinutes .. "m", inline = true},
             
             {name = "⌨️ **Available Commands**", value = "──────────────────────────────", inline = false},
-            {name = "Commands", value = "```?commands - Show all commands with current values\n?performance [player] - Check player performance\n?uptime - Show server uptime\n?serverhop - Toggle server following\n?console - Toggle console logging\n?start/stop - Control logging\n?log - Track specific players\n?whois - Player info\n?server stats - Server info\n?msgcount - Message counts```", inline = false}
+            {name = "Commands", value = "```?commands - Show all commands with current values\n?performance [player] - Check player performance\n?uptime - Show server uptime\n?serverhop - Toggle server following\n?simplechat/?normalchat - Chat modes\n?simplejoin/?normaljoin - Join modes\n?simpleleave/?normalleave - Leave modes\n?simplecmd/?normalcmd - Command modes\n?start/stop - Control logging\n?log - Track specific players\n?whois - Player info\n?server stats - Server info\n?msgcount - Message counts```", inline = false}
         },
         footer = {text = "Type ?commands for full command list with current values • Live Feed Active"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, false)
-    
-    -- Console log
-    if consoleEnabled then
-        oldPrint("[SYSTEM] Logger connected - All systems online")
-    end
 end
 
 -- ========== ENHANCED COMMANDS LIST WITH CURRENT VALUES ==========
@@ -416,6 +343,8 @@ local function sendCommandsList()
     local gameInfo = getGameInfo()
     local localPlayer = game:GetService("Players").LocalPlayer
     local uptime = math.floor((os.time() - startTime) / 60)
+    local uptimeHours = math.floor(uptime / 60)
+    local uptimeMinutes = uptime % 60
     
     local embed = {
         title = "📋 **COMMANDS LIST**",
@@ -444,31 +373,44 @@ local function sendCommandsList()
             {name = "?uptime", value = "Show server uptime", inline = true},
             {name = "?serverhop", value = "Toggle server following", inline = true},
             
-            {name = "📝 **Format Commands**", value = "──────────────────────────────", inline = false},
-            {name = "?simple", value = "Switch to SIMPLE mode", inline = true},
-            {name = "?normal", value = "Switch to NORMAL mode", inline = true},
+            {name = "📝 **Chat Format Commands**", value = "──────────────────────────────", inline = false},
+            {name = "?simplechat", value = "Switch to SIMPLE chat mode", inline = true},
+            {name = "?normalchat", value = "Switch to NORMAL chat mode", inline = true},
             
-            {name = "📋 **Console Commands**", value = "──────────────────────────────", inline = false},
-            {name = "?console", value = "Toggle console logging", inline = true},
+            {name = "🟢 **Join Format Commands**", value = "──────────────────────────────", inline = false},
+            {name = "?simplejoin", value = "Switch to SIMPLE join mode", inline = true},
+            {name = "?normaljoin", value = "Switch to NORMAL join mode", inline = true},
+            
+            {name = "🔴 **Leave Format Commands**", value = "──────────────────────────────", inline = false},
+            {name = "?simpleleave", value = "Switch to SIMPLE leave mode", inline = true},
+            {name = "?normalleave", value = "Switch to NORMAL leave mode", inline = true},
+            
+            {name = "⚙️ **Command Format Commands**", value = "──────────────────────────────", inline = false},
+            {name = "?simplecmd", value = "Switch to SIMPLE command mode", inline = true},
+            {name = "?normalcmd", value = "Switch to NORMAL command mode", inline = true},
             
             {name = "ℹ️ **Info Commands**", value = "──────────────────────────────", inline = false},
             {name = "?commands/?help", value = "Show this list", inline = true},
             
             {name = "⚙️ **CURRENT VALUES**", value = "──────────────────────────────", inline = false},
-            {name = "💬 Chat Status", value = (loggingEnabled.chat and "✅ ON" or "❌ OFF"), inline = true},
-            {name = "🟢 Joins Status", value = (loggingEnabled.joins and "✅ ON" or "❌ OFF"), inline = true},
-            {name = "🔴 Leaves Status", value = (loggingEnabled.leaves and "✅ ON" or "❌ OFF"), inline = true},
-            {name = "📝 Current Mode", value = loggingMode:upper(), inline = true},
-            {name = "🎯 Player Filter", value = (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL"), inline = true},
+            {name = "💬 Chat", value = (loggingEnabled.chat and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "🟢 Joins", value = (loggingEnabled.joins and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "🔴 Leaves", value = (loggingEnabled.leaves and "✅ ON" or "❌ OFF"), inline = true},
+            {name = "📝 Chat Mode", value = loggingMode:upper(), inline = true},
+            {name = "🟢 Join Mode", value = joinLeaveMode:upper(), inline = true},
+            {name = "🔴 Leave Mode", value = joinLeaveMode:upper(), inline = true},
+            {name = "⚙️ Cmd Mode", value = commandsMode:upper(), inline = true},
+            {name = "🎯 Filter", value = (playerLogs and #playerLogs > 0 and #playerLogs .. " players" or "ALL"), inline = true},
             {name = "🔄 Serverhop", value = (serverhopEnabled and "✅ ON" or "❌ OFF"), inline = true},
-            {name = "📋 Console", value = (consoleEnabled and "✅ ON" or "❌ OFF"), inline = true},
-            {name = "👥 Server Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
-            {name = "⏱️ Uptime", value = uptime .. " minutes", inline = true},
+            {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            {name = "⏱️ Uptime", value = uptime .. " min", inline = true},
+            {name = "🕐 Uptime (H)", value = uptimeHours .. "h " .. uptimeMinutes .. "m", inline = true},
             
             {name = "👤 **Account Info**", value = "──────────────────────────────", inline = false},
             {name = "👤 Display", value = localPlayer.DisplayName, inline = true},
             {name = "🔰 Username", value = "@" .. localPlayer.Name, inline = true},
             {name = "🆔 User ID", value = localPlayer.UserId, inline = true},
+            {name = "📅 Age", value = localPlayer.AccountAge .. " days", inline = true},
             
             {name = "🎮 **Game Info**", value = "──────────────────────────────", inline = false},
             {name = "🎮 Game", value = gameInfo.name, inline = false},
@@ -499,6 +441,8 @@ local function logChatMessageNormal(player, message)
     
     messageCounts[player.UserId] = (messageCounts[player.UserId] or 0) + 1
     local gameInfo = getGameInfo()
+    local playerAge = player.AccountAge
+    local playerCreated = os.date("%Y-%m-%d", os.time() - (playerAge * 86400))
     
     local embed = {
         title = "💬 **NEW CHAT MESSAGE**",
@@ -509,21 +453,27 @@ local function logChatMessageNormal(player, message)
             {name = "📛 Display Name", value = player.DisplayName, inline = true},
             {name = "🔰 Username", value = "@" .. player.Name, inline = true},
             {name = "🆔 User ID", value = player.UserId, inline = true},
+            {name = "📅 Created", value = playerCreated, inline = true},
+            {name = "⏰ Age", value = playerAge .. " days", inline = true},
             
             {name = "⏰ **Timestamp**", value = "──────────────────────────────", inline = false},
             {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
             {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            {name = "🌍 UTC", value = os.date("!%H:%M:%S"), inline = true},
             
             {name = "💭 **Message Content**", value = "──────────────────────────────", inline = false},
             {name = "Message", value = "```" .. message .. "```", inline = false},
+            {name = "📏 Length", value = #message .. " chars", inline = true},
             
             {name = "📊 **Server Information**", value = "──────────────────────────────", inline = false},
             {name = "🌍 Server", value = gameInfo.jobId:sub(1,8), inline = true},
             {name = "👥 Online", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
-            {name = "📨 Message #", value = messageCounts[player.UserId], inline = true}
+            {name = "📨 Msg #", value = messageCounts[player.UserId], inline = true},
+            {name = "🎮 Game", value = gameInfo.name:sub(1,20), inline = true},
+            {name = "📍 Place", value = gameInfo.placeId, inline = true}
         },
         thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
-        footer = {text = "Chat Logger • Live Feed"},
+        footer = {text = "Chat Logger • Live Feed • Enhanced Mode"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, false)
@@ -547,14 +497,14 @@ local function logChatMessageSimple(player, message)
     local gameInfo = getGameInfo()
     
     local embed = {
-        title = "💬 **CHAT MESSAGE**",
+        title = "💬 **CHAT**",
         description = "──────────────────────────────",
         color = Colors.CHAT,
         fields = {
             {name = "👤 User", value = string.format("%s (@%s)", player.DisplayName, player.Name), inline = true},
             {name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true},
             {name = "💬 Message", value = message, inline = false},
-            {name = "📊 Info", value = string.format("Msg #%d • %d/%d online", messageCounts[player.UserId], gameInfo.players, gameInfo.maxPlayers), inline = false}
+            {name = "📊 Info", value = string.format("#%d • %d/%d", messageCounts[player.UserId], gameInfo.players, gameInfo.maxPlayers), inline = false}
         },
         thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
         footer = {text = "Chat Logger • Simple Mode"},
@@ -576,7 +526,31 @@ local function logPlayerJoin(player)
     if not loggingEnabled.joins then return end
     
     local gameInfo = getGameInfo()
+    local playerAge = player.AccountAge
+    local playerCreated = os.date("%Y-%m-%d", os.time() - (playerAge * 86400))
+    local serverUptime = math.floor((os.time() - startTime) / 60)
     
+    -- SIMPLE JOIN EMBED
+    if joinLeaveMode == "simple" then
+        local simpleEmbed = {
+            title = "🟢 **JOIN**",
+            description = "──────────────────────────────",
+            color = Colors.JOIN,
+            fields = {
+                {name = "👤 Player", value = string.format("%s (@%s)", player.DisplayName, player.Name), inline = true},
+                {name = "🆔 ID", value = player.UserId, inline = true},
+                {name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true},
+                {name = "👥 Now", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true}
+            },
+            thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
+            footer = {text = "Join Logger • Simple Mode"},
+            timestamp = DateTime.now():ToIsoDate()
+        }
+        sendToDiscwebhook(simpleEmbed, true)
+        return
+    end
+    
+    -- NORMAL JOIN EMBED (with 5 extra items)
     local embed = {
         title = "🟢 **PLAYER JOINED**",
         description = "──────────────────────────────\n**A new player has joined the server!**\n──────────────────────────────",
@@ -586,34 +560,69 @@ local function logPlayerJoin(player)
             {name = "📛 Display Name", value = player.DisplayName, inline = true},
             {name = "🔰 Username", value = "@" .. player.Name, inline = true},
             {name = "🆔 User ID", value = player.UserId, inline = true},
-            {name = "📅 Account Age", value = player.AccountAge .. " days", inline = true},
+            {name = "📅 Created", value = playerCreated, inline = true},
+            {name = "⏰ Age", value = playerAge .. " days", inline = true},
             
             {name = "⏰ **Join Time**", value = "──────────────────────────────", inline = false},
             {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
             {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            {name = "🌍 UTC", value = os.date("!%H:%M:%S"), inline = true},
             
             {name = "📊 **Server Status**", value = "──────────────────────────────", inline = false},
             {name = "👥 Previous", value = gameInfo.players - 1, inline = true},
             {name = "👥 Current", value = gameInfo.players, inline = true},
             {name = "📈 Change", value = "+1", inline = true},
-            {name = "🎯 Max Players", value = gameInfo.maxPlayers, inline = true}
+            {name = "🎯 Max Players", value = gameInfo.maxPlayers, inline = true},
+            {name = "⏱️ Server Uptime", value = serverUptime .. " min", inline = true},
+            
+            {name = "🎮 **Game Info**", value = "──────────────────────────────", inline = false},
+            {name = "🎮 Game", value = gameInfo.name:sub(1,20), inline = true},
+            {name = "📍 Place", value = gameInfo.placeId, inline = true},
+            {name = "🔑 Job", value = gameInfo.jobId:sub(1,8), inline = true}
         },
         thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
-        footer = {text = "Join Logger • Live Tracking"},
+        footer = {text = "Join Logger • Live Tracking • Enhanced Mode"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, true)
-    
-    if consoleEnabled then
-        oldPrint(string.format("[JOIN] %s (@%s) joined the server", player.DisplayName, player.Name))
-    end
 end
 
 local function logPlayerLeave(player)
     if not loggingEnabled.leaves then return end
     
     local gameInfo = getGameInfo()
+    local playerAge = player.AccountAge
+    local serverUptime = math.floor((os.time() - startTime) / 60)
+    local timePlayed = 0
     
+    pcall(function()
+        if player:GetJoinData() and player:GetJoinData().JoinTime then
+            timePlayed = math.floor((os.time() - player:GetJoinData().JoinTime) / 60)
+        end
+    end)
+    
+    -- SIMPLE LEAVE EMBED
+    if joinLeaveMode == "simple" then
+        local simpleEmbed = {
+            title = "🔴 **LEAVE**",
+            description = "──────────────────────────────",
+            color = Colors.LEAVE,
+            fields = {
+                {name = "👤 Player", value = string.format("%s (@%s)", player.DisplayName, player.Name), inline = true},
+                {name = "🆔 ID", value = player.UserId, inline = true},
+                {name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true},
+                {name = "👥 Now", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+                {name = "💬 Msgs", value = messageCounts[player.UserId] or 0, inline = true}
+            },
+            thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
+            footer = {text = "Leave Logger • Simple Mode"},
+            timestamp = DateTime.now():ToIsoDate()
+        }
+        sendToDiscwebhook(simpleEmbed, true)
+        return
+    end
+    
+    -- NORMAL LEAVE EMBED (with 5 extra items)
     local embed = {
         title = "🔴 **PLAYER LEFT**",
         description = "──────────────────────────────\n**A player has left the server**\n──────────────────────────────",
@@ -623,29 +632,34 @@ local function logPlayerLeave(player)
             {name = "📛 Display Name", value = player.DisplayName, inline = true},
             {name = "🔰 Username", value = "@" .. player.Name, inline = true},
             {name = "🆔 User ID", value = player.UserId, inline = true},
+            {name = "📅 Age", value = playerAge .. " days", inline = true},
             
             {name = "⏰ **Leave Time**", value = "──────────────────────────────", inline = false},
             {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
             {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            {name = "🌍 UTC", value = os.date("!%H:%M:%S"), inline = true},
             
             {name = "📊 **Server Status**", value = "──────────────────────────────", inline = false},
             {name = "👥 Previous", value = gameInfo.players + 1, inline = true},
             {name = "👥 Current", value = gameInfo.players, inline = true},
             {name = "📉 Change", value = "-1", inline = true},
             {name = "🎯 Max Players", value = gameInfo.maxPlayers, inline = true},
+            {name = "⏱️ Server Uptime", value = serverUptime .. " min", inline = true},
             
             {name = "📨 **Chat Stats**", value = "──────────────────────────────", inline = false},
-            {name = "💬 Messages", value = messageCounts[player.UserId] or 0, inline = true}
+            {name = "💬 Messages", value = messageCounts[player.UserId] or 0, inline = true},
+            {name = "⏱️ Time Played", value = timePlayed .. " min", inline = true},
+            
+            {name = "🎮 **Game Info**", value = "──────────────────────────────", inline = false},
+            {name = "🎮 Game", value = gameInfo.name:sub(1,20), inline = true},
+            {name = "📍 Place", value = gameInfo.placeId, inline = true},
+            {name = "🔑 Job", value = gameInfo.jobId:sub(1,8), inline = true}
         },
         thumbnail = {url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"},
-        footer = {text = "Leave Logger • Live Tracking"},
+        footer = {text = "Leave Logger • Live Tracking • Enhanced Mode"},
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, true)
-    
-    if consoleEnabled then
-        oldPrint(string.format("[LEAVE] %s (@%s) left the server", player.DisplayName, player.Name))
-    end
 end
 
 -- ========== NEW COMMAND: PERFORMANCE CHECK ==========
@@ -674,26 +688,46 @@ local function handlePerformance(args)
     
     local target = matches[1]
     local gameInfo = getGameInfo()
+    local playerAge = target.AccountAge
+    local playerCreated = os.date("%Y-%m-%d", os.time() - (playerAge * 86400))
+    local serverUptime = math.floor((os.time() - startTime) / 60)
     
     -- Gather performance metrics
-    local fps = 60 -- Estimated, can't get real FPS
-    local ping = 50 -- Estimated
+    local fps = "60 (est)"
+    local ping = "50ms (est)"
     local memory = "N/A"
     local cpu = "N/A"
-    local network = "N/A"
+    local network = "Connected"
+    local isMoving = "No"
+    local health = "N/A"
+    local maxHealth = "N/A"
+    local position = "N/A"
+    local team = "None"
+    local level = "N/A"
+    local cash = "N/A"
     
     pcall(function()
-        -- Try to get network stats
-        if target:FindFirstChild("NetworkClient") then
-            network = "Connected"
-        end
-        
-        -- Check if player is moving
-        local isMoving = "No"
         if target.Character and target.Character:FindFirstChild("Humanoid") then
             local humanoid = target.Character.Humanoid
+            health = humanoid.Health
+            maxHealth = humanoid.MaxHealth
             if humanoid.MoveDirection.Magnitude > 0 then
                 isMoving = "Yes"
+            end
+            if target.Character:FindFirstChild("HumanoidRootPart") then
+                local pos = target.Character.HumanoidRootPart.Position
+                position = string.format("(%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z)
+            end
+        end
+        if target.Team then
+            team = target.Team.Name
+        end
+        if target:FindFirstChild("leaderstats") then
+            for _, stat in ipairs(target.leaderstats:GetChildren()) do
+                if stat.Name:lower():find("level") then level = stat.Value end
+                if stat.Name:lower():find("cash") or stat.Name:lower():find("money") or stat.Name:lower():find("points") then
+                    cash = stat.Value
+                end
             end
         end
     end)
@@ -708,19 +742,32 @@ local function handlePerformance(args)
             {name = "👤 Username", value = target.Name, inline = true},
             {name = "📛 Display", value = target.DisplayName, inline = true},
             {name = "🆔 User ID", value = target.UserId, inline = true},
+            {name = "📅 Created", value = playerCreated, inline = true},
+            {name = "⏰ Age", value = playerAge .. " days", inline = true},
             
             {name = "📊 **Performance Metrics**", value = "──────────────────────────────", inline = false},
-            {name = "⚡ FPS", value = fps .. " (estimated)", inline = true},
-            {name = "📶 Ping", value = ping .. "ms (estimated)", inline = true},
+            {name = "⚡ FPS", value = fps, inline = true},
+            {name = "📶 Ping", value = ping, inline = true},
             {name = "💾 Memory", value = memory, inline = true},
             {name = "⚙️ CPU", value = cpu, inline = true},
             {name = "🌐 Network", value = network, inline = true},
             {name = "🚶 Moving", value = isMoving, inline = true},
             
+            {name = "❤️ **Health & Position**", value = "──────────────────────────────", inline = false},
+            {name = "❤️ Health", value = health .. "/" .. maxHealth, inline = true},
+            {name = "📍 Position", value = position, inline = true},
+            {name = "👥 Team", value = team, inline = true},
+            
+            {name = "📊 **Game Stats**", value = "──────────────────────────────", inline = false},
+            {name = "📊 Level", value = level, inline = true},
+            {name = "💰 Cash", value = cash, inline = true},
+            
             {name = "📊 **Statistics**", value = "──────────────────────────────", inline = false},
             {name = "💬 Messages", value = messageCounts[target.UserId] or 0, inline = true},
-            {name = "⏱️ Join Time", value = target:GetJoinData() and math.floor((os.time() - target:GetJoinData().JoinTime) / 60) .. " min" or "N/A", inline = true},
-            {name = "👥 Server", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true}
+            {name = "👥 Server", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            {name = "⏱️ Server Uptime", value = serverUptime .. " min", inline = true},
+            {name = "🎮 Game", value = gameInfo.name:sub(1,20), inline = true},
+            {name = "📍 Place", value = gameInfo.placeId, inline = true}
         },
         footer = {text = "Performance Check • " .. os.date("%H:%M:%S")},
         timestamp = DateTime.now():ToIsoDate()
@@ -748,12 +795,12 @@ local function handleUptime()
         color = Colors.UPTIME,
         fields = {
             {name = "📊 **Uptime Breakdown**", value = "──────────────────────────────", inline = false},
-            {name = "⏱️ Total Seconds", value = uptimeSeconds .. " seconds", inline = true},
-            {name = "⏱️ Total Minutes", value = uptime .. " minutes", inline = true},
-            {name = "⏱️ Total Hours", value = uptimeHours .. " hours", inline = true},
+            {name = "⏱️ Seconds", value = uptimeSeconds .. " s", inline = true},
+            {name = "⏱️ Minutes", value = uptime .. " min", inline = true},
+            {name = "⏱️ Hours", value = uptimeHours .. " h", inline = true},
             {name = "📅 Days", value = uptimeDays, inline = true},
-            {name = "🕐 Hours", value = uptimeRemainingHours, inline = true},
-            {name = "⏰ Minutes", value = uptimeMinutes, inline = true},
+            {name = "🕐 Hours Left", value = uptimeRemainingHours, inline = true},
+            {name = "⏰ Minutes Left", value = uptimeMinutes, inline = true},
             
             {name = "📊 **Full Uptime**", value = "──────────────────────────────", inline = false},
             {name = "Uptime", value = "```" .. uptimeString .. "```", inline = false},
@@ -761,11 +808,13 @@ local function handleUptime()
             {name = "🕐 **Time Information**", value = "──────────────────────────────", inline = false},
             {name = "Started At", value = os.date("%Y-%m-%d %H:%M:%S", startTime), inline = true},
             {name = "Current Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true},
+            {name = "UTC", value = os.date("!%Y-%m-%d %H:%M:%S"), inline = true},
             
             {name = "🎮 **Server Info**", value = "──────────────────────────────", inline = false},
             {name = "Game", value = gameInfo.name, inline = false},
             {name = "Place ID", value = gameInfo.placeId, inline = true},
-            {name = "Job ID", value = gameInfo.jobId, inline = true}
+            {name = "Job ID", value = gameInfo.jobId, inline = true},
+            {name = "Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true}
         },
         footer = {text = "Uptime Logger • Real-time Data"},
         timestamp = DateTime.now():ToIsoDate()
@@ -784,27 +833,6 @@ local function handleServerhop()
         "⏹️ Serverhop has been **DISABLED**\n\nThe script will stay in current server only"
     
     sendCommandEmbed("?serverhop", "System", "Success", message)
-    
-    if consoleEnabled then
-        oldPrint("[SERVERHOP] " .. (serverhopEnabled and "Enabled - Will follow to new servers" or "Disabled - Staying in current server"))
-    end
-end
-
--- ========== NEW COMMAND: CONSOLE TOGGLE ==========
-local function handleConsole()
-    consoleEnabled = not consoleEnabled
-    loggingEnabled.console = consoleEnabled
-    
-    local status = consoleEnabled and "ENABLED" or "DISABLED"
-    local message = consoleEnabled and 
-        "📋 Console logging has been **ENABLED**\n\nAll console output will now be sent to Discord!" or 
-        "⏹️ Console logging has been **DISABLED**\n\nConsole output will no longer be sent to Discord"
-    
-    sendCommandEmbed("?console", "System", "Success", message)
-    
-    if consoleEnabled then
-        oldPrint("[CONSOLE] Console logging enabled - All output will be sent to Discord")
-    end
 end
 
 -- ========== COMMAND HANDLERS ==========
@@ -835,6 +863,7 @@ local function handleWhois(args)
     local accountAgeDays = target.AccountAge
     local accountCreated = os.date("%Y-%m-%d", os.time() - (accountAgeDays * 86400))
     local gameInfo = getGameInfo()
+    local serverUptime = math.floor((os.time() - startTime) / 60)
     
     -- Get character info if available
     local health = "N/A"
@@ -843,11 +872,16 @@ local function handleWhois(args)
     local team = "None"
     local level = "N/A"
     local cash = "N/A"
+    local isMoving = "No"
     
     pcall(function()
         if target.Character and target.Character:FindFirstChild("Humanoid") then
-            health = target.Character.Humanoid.Health
-            maxHealth = target.Character.Humanoid.MaxHealth
+            local humanoid = target.Character.Humanoid
+            health = humanoid.Health
+            maxHealth = humanoid.MaxHealth
+            if humanoid.MoveDirection.Magnitude > 0 then
+                isMoving = "Yes"
+            end
             if target.Character:FindFirstChild("HumanoidRootPart") then
                 local pos = target.Character.HumanoidRootPart.Position
                 position = string.format("(%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z)
@@ -857,7 +891,6 @@ local function handleWhois(args)
             team = target.Team.Name
         end
         
-        -- Try to get game-specific stats
         if target:FindFirstChild("leaderstats") then
             for _, stat in ipairs(target.leaderstats:GetChildren()) do
                 if stat.Name:lower():find("level") then level = stat.Value end
@@ -889,11 +922,15 @@ local function handleWhois(args)
             {name = "👥 Team", value = team, inline = true},
             {name = "❤️ Health", value = health .. "/" .. maxHealth, inline = true},
             {name = "📍 Position", value = position, inline = true},
+            {name = "🚶 Moving", value = isMoving, inline = true},
             
             {name = "📊 **Statistics**", value = "──────────────────────────────", inline = false},
             {name = "💬 Messages", value = messageCounts[target.UserId] or 0, inline = true},
             {name = "🌍 Server", value = gameInfo.jobId:sub(1,8), inline = true},
             {name = "👥 Online", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            {name = "⏱️ Server Uptime", value = serverUptime .. " min", inline = true},
+            {name = "🎮 Game", value = gameInfo.name:sub(1,20), inline = true},
+            {name = "📍 Place", value = gameInfo.placeId, inline = true},
             
             {name = "🔗 **Links**", value = "──────────────────────────────", inline = false},
             {name = "Profile", value = "[Click here to view profile](https://www.roblox.com/users/" .. target.UserId .. "/profile)", inline = false}
@@ -910,6 +947,7 @@ local function handleServerStats()
     local uptime = math.floor((os.time() - startTime) / 60)
     local uptimeHours = math.floor(uptime / 60)
     local uptimeMinutes = uptime % 60
+    local uptimeDays = math.floor(uptimeHours / 24)
     
     local embed = {
         title = "📊 **SERVER STATISTICS**",
@@ -925,15 +963,18 @@ local function handleServerStats()
             {name = "👥 Current", value = gameInfo.players, inline = true},
             {name = "🎯 Max", value = gameInfo.maxPlayers, inline = true},
             {name = "📊 Available", value = gameInfo.maxPlayers - gameInfo.players, inline = true},
+            {name = "📈 Fill %", value = math.floor((gameInfo.players / gameInfo.maxPlayers) * 100) .. "%", inline = true},
             
             {name = "⏱️ **Server Uptime**", value = "──────────────────────────────", inline = false},
             {name = "⏱️ Minutes", value = uptime .. " min", inline = true},
             {name = "⏱️ Hours", value = uptimeHours .. "h " .. uptimeMinutes .. "m", inline = true},
+            {name = "📅 Days", value = uptimeDays, inline = true},
             
             {name = "⏰ **Time Information**", value = "──────────────────────────────", inline = false},
             {name = "🕐 Local", value = os.date("%H:%M:%S"), inline = true},
             {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
-            {name = "🌍 UTC", value = os.date("!%H:%M:%S"), inline = true}
+            {name = "🌍 UTC", value = os.date("!%H:%M:%S"), inline = true},
+            {name = "🕐 Started", value = os.date("%H:%M:%S", startTime), inline = true}
         },
         footer = {text = "Server Stats Logger • Real-time Data"},
         timestamp = DateTime.now():ToIsoDate()
@@ -950,6 +991,7 @@ local function handleMsgCount(args)
     
     local query = table.concat(args, " "):sub(9):gsub("^%s+", ""):gsub("%s+$", "")
     local gameInfo = getGameInfo()
+    local serverUptime = math.floor((os.time() - startTime) / 60)
     
     if query:lower() == "all" then
         local total = 0
@@ -980,6 +1022,8 @@ local function handleMsgCount(args)
                 {name = "💬 Total", value = total, inline = true},
                 {name = "👥 Active", value = #topPlayers, inline = true},
                 {name = "👥 Server", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+                {name = "⏱️ Uptime", value = serverUptime .. " min", inline = true},
+                {name = "🎮 Game", value = gameInfo.name:sub(1,20), inline = true},
                 {name = "🏆 **Top Chatters**", value = "──────────────────────────────", inline = false},
                 {name = "Leaderboard", value = topStr ~= "" and topStr or "No messages yet", inline = false}
             },
@@ -1024,7 +1068,8 @@ local function handleMsgCount(args)
         fields = {
             {name = "📊 **Results**", value = "──────────────────────────────", inline = false},
             {name = "Statistics", value = table.concat(results, "\n"), inline = false},
-            {name = "👥 Server", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true}
+            {name = "👥 Server", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            {name = "⏱️ Uptime", value = serverUptime .. " min", inline = true}
         },
         timestamp = DateTime.now():ToIsoDate()
     }
@@ -1092,14 +1137,44 @@ local function handleCommand(player, message)
         end
         return true
         
-    elseif command == "?simple" then
+    elseif command == "?simplechat" then
         loggingMode = "simple"
-        sendCommandEmbed("?simple", "System", "Success", "🔄 Switched to **SIMPLE** mode\n\n**New Values:**\n📝 Chat Format: **SIMPLE**\nPrevious: NORMAL", "mode_change")
+        sendCommandEmbed("?simplechat", "System", "Success", "🔄 Switched to **SIMPLE** chat mode\n\n**New Values:**\n📝 Chat Format: **SIMPLE**\nPrevious: NORMAL", "mode_change")
         return true
         
-    elseif command == "?normal" then
+    elseif command == "?normalchat" then
         loggingMode = "normal"
-        sendCommandEmbed("?normal", "System", "Success", "🔄 Switched to **NORMAL** mode\n\n**New Values:**\n📝 Chat Format: **NORMAL**\nPrevious: SIMPLE", "mode_change")
+        sendCommandEmbed("?normalchat", "System", "Success", "🔄 Switched to **NORMAL** chat mode\n\n**New Values:**\n📝 Chat Format: **NORMAL**\nPrevious: SIMPLE", "mode_change")
+        return true
+        
+    elseif command == "?simplejoin" then
+        joinLeaveMode = "simple"
+        sendCommandEmbed("?simplejoin", "System", "Success", "🔄 Switched to **SIMPLE** join mode\n\n**New Values:**\n🟢 Join Format: **SIMPLE**", "mode_change")
+        return true
+        
+    elseif command == "?normaljoin" then
+        joinLeaveMode = "normal"
+        sendCommandEmbed("?normaljoin", "System", "Success", "🔄 Switched to **NORMAL** join mode\n\n**New Values:**\n🟢 Join Format: **NORMAL**", "mode_change")
+        return true
+        
+    elseif command == "?simpleleave" then
+        joinLeaveMode = "simple"
+        sendCommandEmbed("?simpleleave", "System", "Success", "🔄 Switched to **SIMPLE** leave mode\n\n**New Values:**\n🔴 Leave Format: **SIMPLE**", "mode_change")
+        return true
+        
+    elseif command == "?normalleave" then
+        joinLeaveMode = "normal"
+        sendCommandEmbed("?normalleave", "System", "Success", "🔄 Switched to **NORMAL** leave mode\n\n**New Values:**\n🔴 Leave Format: **NORMAL**", "mode_change")
+        return true
+        
+    elseif command == "?simplecmd" then
+        commandsMode = "simple"
+        sendCommandEmbed("?simplecmd", "System", "Success", "🔄 Switched to **SIMPLE** command mode\n\n**New Values:**\n⚙️ Command Format: **SIMPLE**", "mode_change")
+        return true
+        
+    elseif command == "?normalcmd" then
+        commandsMode = "normal"
+        sendCommandEmbed("?normalcmd", "System", "Success", "🔄 Switched to **NORMAL** command mode\n\n**New Values:**\n⚙️ Command Format: **NORMAL**", "mode_change")
         return true
         
     elseif command == "?log" then
@@ -1176,10 +1251,6 @@ local function handleCommand(player, message)
     elseif command == "?serverhop" then
         handleServerhop()
         return true
-        
-    elseif command == "?console" then
-        handleConsole()
-        return true
     end
     
     return false
@@ -1193,6 +1264,7 @@ local function monitorServerhop()
             -- Server changed
             local oldServer = currentServer
             currentServer = game.JobId
+            local gameInfo = getGameInfo()
             
             -- Log server change
             local embed = {
@@ -1204,16 +1276,14 @@ local function monitorServerhop()
                     {name = "📌 Previous Server", value = oldServer:sub(1,8), inline = true},
                     {name = "📍 New Server", value = currentServer:sub(1,8), inline = true},
                     {name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true},
-                    {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true}
+                    {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+                    {name = "🎮 Game", value = gameInfo.name:sub(1,20), inline = true},
+                    {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true}
                 },
                 footer = {text = "Serverhop Active • Following you"},
                 timestamp = DateTime.now():ToIsoDate()
             }
             sendToDiscwebhook(embed, false)
-            
-            if consoleEnabled then
-                oldPrint("[SERVERHOP] Detected server change - Following to new server")
-            end
             
             -- Re-initialize logging in new server
             wait(2)
@@ -1263,10 +1333,6 @@ local function setupLogging()
     
     -- Start serverhop monitor
     spawn(monitorServerhop)
-    
-    if consoleEnabled then
-        oldPrint("[SYSTEM] Logger setup complete - Ready for commands")
-    end
 end
 
 -- ========== INITIALIZE ==========
@@ -1285,5 +1351,4 @@ print("📡 Status: Connected to Discord")
 print("👤 Account: " .. game:GetService("Players").LocalPlayer.Name)
 print("🎮 Game: " .. getGameInfo().name)
 print("📋 Commands: ?commands for full list with values")
-print("📋 Console Logging: ACTIVE")
 print("=" .. string.rep("=", 50) .. "=")
