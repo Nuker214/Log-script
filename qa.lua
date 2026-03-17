@@ -8,6 +8,7 @@ local webhookUrl = "https://discord.com/api/webhooks/1482913836423057428/fYSkY7X
 local joinLeaveWebhook = "https://discord.com/api/webhooks/1482913976294572215/hiFyivZJqHlMtf5e4c_QcIwowxbV2xbqYX4Kt4Mkwyxbigq_mrA-d2xvHhWNtRgL0c7N" -- Separate webhook for joins & leaves
 local whoisWebhook = "https://discord.com/api/webhooks/1483184762926403846/p4auNyoTdXl79RoY-8v_ngDQiRXS3ulCCHFpH5lWuN5G2w_F_ow6fVACmEOkaIK5S0uC" -- For ?whois command
 local serverStatsWebhook = "https://discord.com/api/webhooks/1483183902783967233/0bR3I2G5qHXGmfP2IpE4tJ0jY7FHz0JeEpwSh4l8_G09tUDeiRzaKsuSlGl7zP0CnApu" -- For ?server stats
+local systemLogsWebhook = "https://discord.com/api/webhooks/YOUR_SYSTEM_LOGS_WEBHOOK_URL_HERE" -- For system command logs
 
 -- ========== GLOBAL VARIABLES ==========
 local loggingEnabled = {
@@ -41,7 +42,8 @@ local Colors = {
     DIVIDER = 12312312,
     ALERT = 16776960,
     PERFORMANCE = 10181046,
-    UPTIME = 15844367
+    UPTIME = 15844367,
+    SYSTEM = 12312312
 }
 
 -- ========== WEBHOOK SEND FUNCTIONS ==========
@@ -149,6 +151,47 @@ local function sendToDiscwebhook(embedData, useJoinLeave)
     wait(0.5)
 end
 
+-- ========== SYSTEM LOGS FUNCTION ==========
+local function sendSystemLog(command, status, details, executor)
+    local localPlayer = game:GetService("Players").LocalPlayer
+    local gameInfo = getGameInfo()
+    local uptime = math.floor((os.time() - startTime) / 60)
+    
+    local statusEmoji = status == "Success" and "✅" or (status == "Error" and "❌" or "⚠️")
+    local statusColor = status == "Success" and Colors.SUCCESS or (status == "Error" and Colors.ERROR or Colors.WARNING)
+    
+    local embed = {
+        title = "🖥️ **SYSTEM LOG**",
+        description = "──────────────────────────────\n**Command Execution Log**\n──────────────────────────────",
+        color = Colors.SYSTEM,
+        fields = {
+            {name = "⌨️ **Command**", value = "──────────────────────────────", inline = false},
+            {name = "Command", value = "```" .. command .. "```", inline = false},
+            {name = "📊 Status", value = string.format("%s %s", statusEmoji, status), inline = true},
+            {name = "👤 Executor", value = string.format("%s (@%s)", localPlayer.DisplayName, localPlayer.Name), inline = true},
+            {name = "🆔 User ID", value = localPlayer.UserId, inline = true},
+            
+            {name = "📝 **Details**", value = "──────────────────────────────", inline = false},
+            {name = "Information", value = details or "Command executed", inline = false},
+            
+            {name = "⏰ **Timestamp**", value = "──────────────────────────────", inline = false},
+            {name = "🕐 Time", value = os.date("%H:%M:%S"), inline = true},
+            {name = "📅 Date", value = os.date("%Y-%m-%d"), inline = true},
+            {name = "🌍 UTC", value = os.date("!%H:%M:%S"), inline = true},
+            
+            {name = "📊 **Server Info**", value = "──────────────────────────────", inline = false},
+            {name = "🎮 Game", value = gameInfo.name, inline = false},
+            {name = "📍 Place ID", value = gameInfo.placeId, inline = true},
+            {name = "🔑 Job ID", value = gameInfo.jobId:sub(1,8), inline = true},
+            {name = "👥 Players", value = gameInfo.players .. "/" .. gameInfo.maxPlayers, inline = true},
+            {name = "⏱️ Uptime", value = uptime .. " min", inline = true}
+        },
+        footer = {text = "System Logger • All Commands Logged"},
+        timestamp = DateTime.now():ToIsoDate()
+    }
+    sendToWebhook(systemLogsWebhook, embed, "System Logger")
+end
+
 -- ========== ENHANCED COMMAND EMBEDS WITH 5 MORE ITEMS ==========
 local function sendCommandEmbed(command, executor, status, details, alertType)
     local gameInfo = getGameInfo()
@@ -157,6 +200,9 @@ local function sendCommandEmbed(command, executor, status, details, alertType)
     local serverUptime = math.floor((os.time() - startTime) / 60)
     local serverUptimeHours = math.floor(serverUptime / 60)
     local serverUptimeMinutes = serverUptime % 60
+    
+    -- Send to system logs
+    sendSystemLog(command, status, details, executor)
     
     -- Add to command history
     table.insert(commandHistory, {
@@ -336,6 +382,7 @@ local function sendConnectionMessage()
         timestamp = DateTime.now():ToIsoDate()
     }
     sendToDiscwebhook(embed, false)
+    sendSystemLog("CONNECTION", "Success", "Logger connected to server")
 end
 
 -- ========== ENHANCED COMMANDS LIST WITH CURRENT VALUES ==========
@@ -1284,6 +1331,7 @@ local function monitorServerhop()
                 timestamp = DateTime.now():ToIsoDate()
             }
             sendToDiscwebhook(embed, false)
+            sendSystemLog("SERVERHOP", "Success", "Detected server change - Following to new server")
             
             -- Re-initialize logging in new server
             wait(2)
